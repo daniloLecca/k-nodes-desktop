@@ -1,0 +1,37 @@
+services:
+  # --- BACKEND (FastAPI + Scipy) ---
+  backend:
+    build: 
+      context: ./backend
+    container_name: network_backend
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+    volumes:
+      - ./backend:/app  # Sincronizza il codice locale col container per il riavvio automatico
+    ports:
+      - "8000:8000"     # Opzionale: per debug diretto senza passare da Nginx
+    environment:
+      - PYTHONUNBUFFERED=1
+
+  # --- FRONTEND (Vue + Vite) ---
+  frontend:
+    build: 
+      context: ./frontend
+    container_name: network_frontend
+    command: npm run dev -- --host 0.0.0.0
+    volumes:
+      - ./frontend:/app           # Sincronizza il codice
+      - /app/node_modules         # Evita che il node_modules locale sovrascriva quello del container
+    ports:
+      - "5173:5173"               # Necessario per i WebSocket di Vite (HMR)
+
+  # --- NGINX (Reverse Proxy) ---
+  nginx:
+    image: nginx:alpine
+    container_name: network_nginx
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    ports:
+      - "80:80"  # Tutto il traffico passa da qui
+    depends_on:
+      - backend
+      - frontend
