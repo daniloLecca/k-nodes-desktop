@@ -2,7 +2,7 @@
   "name": "Vipnodes",
   "dockerComposeFile": "../docker-compose.yml",
   "service": "backend", 
-  "workspaceFolder": "/app",
+  "workspaceFolder": "/workspace",
   "shutdownAction": "stopCompose",
 
   "customizations": {
