@@ -19,3 +19,16 @@ These are some of the functionalities introduced in this tool:
 * Get statistics of the computation, *i.e.* distribution of the spectrum, bounds for a metric in a certain node and a heatmap of the adjacency matrix
 
 The entire project is made in Vue, with the aid of Sigma.js v2 and Graphology for the visualization of the network, and the backend which processes the complex network is based on FastAPI, a popular and high-performing Python framework for backend development.
+
+## Usage
+This project makes use of *Nginx* as a reverse proxy, in order to serve the static Vue files and the API calls whenever required. 
+
+In general is strongly suggested to make the HTTP request to this single endpoint: 
+```markdown
+localhost:80/
+```
+
+In case we need to access the API: 
+```markdown
+localhost:80/api/
+```
