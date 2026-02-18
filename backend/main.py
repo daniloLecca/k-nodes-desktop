@@ -1,36 +1,44 @@
 import io
-
 import numpy as np
 import scipy
 from scipy import sparse
+from scipy.sparse import csc_matrix
 from fastapi import FastAPI, File, UploadFile
 from fastapi.responses import JSONResponse
-from utils import get_clusters
+from utils import get_clusters, ClusterRequest
+from gauss import gauss_exp
 
 app = FastAPI()
 
-# TODO: add expiring for this variables
+# TODO: add expiring for this variables, only needed for when it will be deployed
 clusters = {}
-network = None # the adjacency matrix
+network: csc_matrix = None # the adjacency matrix
+
 
 @app.get("/api/")
 def read_root():
     return {"Hello": "World"}
-'''
-return a json with this format: 
-response = {
-    filename: file name,
-    nodes: number of nodes,
-    edges: number of edges,
-    clusters: {
-        clusterID1: number of the nodes that compound the cluster
-        ...
-    },
-    numberOfClusters: number of clusters 
-}
-'''
+
+
 @app.post("/api/")
 async def overview(file: UploadFile = File(...)):
+    """
+    Processes the adjacency matrix in the .mat file and returns the network info and the clusters.
+    
+    Response JSON:
+    {
+        "filename": str,
+        "nodes": int,
+        "edges": int,
+        "clusters": {
+            "clusterID": node_count,
+            ...
+        },
+        "numberOfClusters": int
+    }
+    """
+    global clusters, network
+    
     # check that the file sent in the body has .mat extension
     if not file.filename.endswith('.mat'):
         return JSONResponse(
@@ -103,3 +111,41 @@ async def overview(file: UploadFile = File(...)):
     
     finally:
         await file.close()
+
+
+@app.post("/api/cluster")
+def nodes_of_cluster(request: ClusterRequest):
+    """
+    Returns the nodes of the specified cluster.
+    
+    Body JSON:
+    {
+        "clusterID": str (number of the cluster as a string)
+    }
+    """
+    try:
+        cluster_id = int(request.clusterID)
+        if cluster_id in clusters:
+            return {"clusterID": cluster_id, "nodes": clusters[cluster_id]}
+        else:
+            return JSONResponse(
+                status_code=404,
+                content={"error": f"Cluster {cluster_id} not found"}
+            )
+    except ValueError:
+        return JSONResponse(
+            status_code=400,
+            content={"error": f"clusterID must be an integer"}
+        )
+    
+@app.post("/api/gaussexp")
+def get_gauss_exp():
+    if network is None:
+        return JSONResponse(status_code=400, content={"error": "network not initialized yet. First send a .mat file to /api/."})
+
+    u = np.zeros(network.shape[0])
+    u[0] = 1.0
+    val, steps = gauss_exp(network, u)
+    return {
+        "exp": val
+    }
