@@ -264,12 +264,8 @@ def gauss_res(A: Union[csc_matrix, np.ndarray], u: np.ndarray, alpha: float, opt
     # options merge
     options = {**default_opts, **opts}
     
-    # handling alpha: compute largest eigenvalue to determine valid range
-    if alpha is None:
-        raise ValueError("alpha parameter is required for gauss_res")
-    
     # Get largest algebraic eigenvalue (for symmetric matrices like adjacency matrices)
-    rho = eigsh(A, k=1, which='LA', return_eigenvectors=False)[0]
+    rho = eigsh(A, k=1, which='LM', return_eigenvectors=False)[0]
     
     # Validate alpha is in valid range
     if not (0 < alpha < 1 / rho):

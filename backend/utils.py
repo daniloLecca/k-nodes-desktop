@@ -26,3 +26,8 @@ def get_clusters(adj_matrix: csc_matrix) -> dict:
 class ClusterRequest(BaseModel):
     clusterID: str
 
+class ExpRequest(BaseModel):
+    node: int
+
+class ResRequest(ExpRequest):
+    alpha: float

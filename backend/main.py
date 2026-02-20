@@ -7,7 +7,7 @@ from fastapi import FastAPI, File, UploadFile, Request
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import Response
-from utils import get_clusters, ClusterRequest
+from utils import get_clusters, ClusterRequest, ExpRequest, ResRequest
 from gauss import gauss_exp, gauss_res
 
 # Middleware per limitare la dimensione del body
@@ -101,6 +101,10 @@ async def overview(file: UploadFile = File(...)):
         # convert the sparse matrix in column sparse format if it's not already
         if sparse.issparse(adj):
             adj = adj.tocsc()
+            adj.setdiag(0) # all the elements in the diagonal will be equal to 0
+            # TODO: check if there were self loops (compare the original diagonal with a 
+            # diagonal of zeros)
+            adj.eliminate_zeros() # delete the zero entries
             network = adj
         else:
             return JSONResponse(
@@ -162,19 +166,20 @@ def nodes_of_cluster(request: ClusterRequest):
         )
     
 @app.post("/api/gaussexp")
-def get_gauss_exp():
+def get_gauss_exp(request: ExpRequest):
     if network is None:
         return JSONResponse(status_code=400, content={"error": "network not initialized yet. First send a .mat file to /api/."})
 
     u = np.zeros(network.shape[0])
-    u[0] = 1.0
+    u[request.node] = 1.0
     val, steps = gauss_exp(network, u)
     return {
-        "exp": val
+        "exp": val, 
+        "steps": steps
     }
 
 @app.post("/api/gaussres")
-def get_gauss_res():
+def get_gauss_res(request: ResRequest):
     """
     Computes the resolvent using Gauss quadrature.
     Uses a default alpha value of 0.85 / lambda_max.
@@ -192,16 +197,13 @@ def get_gauss_res():
 
     try:
         u = np.zeros(network.shape[0])
-        u[0] = 1.0
+        u[request.node] = 1.0
         
         # Compute the largest eigenvalue to determine valid alpha range
         from scipy.sparse.linalg import eigsh
         rho = eigsh(network, k=1, which='LA', return_eigenvectors=False)[0]
         
-        # Use a safe alpha value (85% of maximum allowed)
-        alpha = 0.85 / rho
-        
-        val, steps = gauss_res(network, u, alpha)
+        val, steps = gauss_res(network, u, request.alpha)
         return {
             "res": val
         }
