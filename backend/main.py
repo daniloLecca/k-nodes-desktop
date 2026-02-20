@@ -3,12 +3,35 @@ import numpy as np
 import scipy
 from scipy import sparse
 from scipy.sparse import csc_matrix
-from fastapi import FastAPI, File, UploadFile
+from fastapi import FastAPI, File, UploadFile, Request
 from fastapi.responses import JSONResponse
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.responses import Response
 from utils import get_clusters, ClusterRequest
-from gauss import gauss_exp
+from gauss import gauss_exp, gauss_res
+
+# Middleware per limitare la dimensione del body
+class BodySizeLimitMiddleware(BaseHTTPMiddleware):
+    def __init__(self, app, max_body_size: int = 100 * 1024 * 1024):  # Default 100 MB
+        super().__init__(app)
+        self.max_body_size = max_body_size
+    
+    async def dispatch(self, request: Request, call_next):
+        # Controlla la dimensione del content-length se presente nell'header
+        content_length = request.headers.get('content-length')
+        if content_length and int(content_length) > self.max_body_size:
+            return JSONResponse(
+                status_code=413,
+                content={"error": f"File too large. Maximum size allowed is {self.max_body_size / (1024 * 1024):.0f} MB"}
+            )
+        
+        response = await call_next(request)
+        return response
 
 app = FastAPI()
+
+# Aggiungi il middleware all'applicazione
+app.add_middleware(BodySizeLimitMiddleware, max_body_size=100 * 1024 * 1024)  # 100 MB
 
 # TODO: add expiring for this variables, only needed for when it will be deployed
 clusters = {}
@@ -149,3 +172,41 @@ def get_gauss_exp():
     return {
         "exp": val
     }
+
+@app.post("/api/gaussres")
+def get_gauss_res():
+    """
+    Computes the resolvent using Gauss quadrature.
+    Uses a default alpha value of 0.85 / lambda_max.
+    
+    Response JSON:
+    {
+        "res": float (the resolvent value)
+    }
+    """
+    if network is None:
+        return JSONResponse(
+            status_code=400, 
+            content={"error": "network not initialized yet. First send a .mat file to /api/."}
+        )
+
+    try:
+        u = np.zeros(network.shape[0])
+        u[0] = 1.0
+        
+        # Compute the largest eigenvalue to determine valid alpha range
+        from scipy.sparse.linalg import eigsh
+        rho = eigsh(network, k=1, which='LA', return_eigenvectors=False)[0]
+        
+        # Use a safe alpha value (85% of maximum allowed)
+        alpha = 0.85 / rho
+        
+        val, steps = gauss_res(network, u, alpha)
+        return {
+            "res": val
+        }
+    except Exception as e:
+        return JSONResponse(
+            status_code=500,
+            content={"error": f"Error computing resolvent: {str(e)}"}
+        )
