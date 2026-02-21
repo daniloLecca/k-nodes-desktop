@@ -1,21 +1,29 @@
 import numpy as np
 from scipy.sparse.linalg import eigsh
 from scipy.sparse import csc_matrix
-from scipy.linalg import norm, eigh
+from scipy.linalg import norm, eigh, eigh_tridiagonal
 from typing import Optional, Tuple, Dict, Any, Union
+from time import perf_counter
 
-def expm_eig(T: np.ndarray, mu: float = 0.0) -> np.ndarray:
+def expm_eig(T: np.ndarray, mu: float = 0.0) -> float:
     """
     Compute expm(T) using spectral decomposition
     T is the Lanczos tridiagonal matrix 
     """
-    eigvals, V = eigh(T) # eigvals is the column vector containing the eigenvalues
-    # V is a matrix (ndarray) in which every column represents the associated eigenvector
-    # for the eigenvalue (i.e. eigvals[i] = V[:, i])
-    # V @ diag(exp(...)) @ V.T
-    return V @ (np.exp(eigvals - mu)[:, None] * V.T) # e ^ T (through spectral decomposition)
+    # Estrai diagonale principale e sotto-diagonale
+    d = np.diag(T)
+    e = np.diag(T, k=-1)
+    
+    # Calcola autovalori e autovettori in modo ottimizzato
+    eigvals, V = eigh_tridiagonal(d, e)
+    
+    # Calcola solo l'elemento (0,0) evitando la moltiplicazione di matrici
+    exp_vals = np.exp(eigvals - mu)
+    
+    # V[0, :] è la prima riga della matrice degli autovettori
+    return float(np.sum((V[0, :] ** 2) * exp_vals))
 
-def res(T: np.ndarray, alpha: float) -> np.ndarray:
+def res(T: np.ndarray, alpha: float) -> float:
     """
     Computes the resolvent (I - alpha*T)^(-1) using spectral decomposition.
     
@@ -23,14 +31,12 @@ def res(T: np.ndarray, alpha: float) -> np.ndarray:
     :param alpha: shift parameter (must satisfy 0 < alpha < 1/lambda_max(T))
     :return: resolvent matrix
     """
-    eigvals, V = eigh(T) # eigvals is the column vector containing the eigenvalues
-    # V is a matrix (ndarray) in which every column represents the associated eigenvector
-    # for the eigenvalue (i.e. eigvals[i] = V[:, i])
+    d = np.diag(T)
+    e = np.diag(T, k=-1)
+    eigvals, V = eigh_tridiagonal(d, e)
     
-    # Check if any eigenvalue would cause division by zero or near-zero
     diag_elements = 1 / (1 - alpha * eigvals)
-    F = V @ np.diag(diag_elements) @ V.conj().T
-    return F
+    return float(np.sum((V[0, :] ** 2) * diag_elements))
 
 
 def opolyval(alfa: np.ndarray, beta: np.ndarray, beta0: float, x: Union[float, np.ndarray]) -> Tuple[np.ndarray, np.ndarray]:
@@ -80,8 +86,7 @@ def gauss_exp(A: Union[csc_matrix, np.ndarray], u: np.ndarray, theta: Optional[f
     if theta is None:
         # if not given, the largest eigenvalue is computed
         # 'LA' = Largest Algebraic
-        eigvals_A = eigsh(A, k=1, which='LA', return_eigenvectors=False) 
-        theta = eigvals_A[0]
+        theta = eigsh(A, k=1, which='LA', return_eigenvectors=False)[0]
 
     # Use options["gaussmu"] if explicitly set (even if 0.0), otherwise use theta
     mu = theta if options["gaussmu"] is None else options["gaussmu"]
@@ -110,7 +115,7 @@ def gauss_exp(A: Union[csc_matrix, np.ndarray], u: np.ndarray, theta: Optional[f
     q_0 = np.zeros_like(u)
     q = u / beta
     
-    if options["gaussreorth"]: Q[:, 0] = q.flatten()
+    if options["gaussreorth"]: Q[:, 0] = q.ravel()
 
     dif = 1000.0
     g = 0.0
@@ -120,22 +125,24 @@ def gauss_exp(A: Union[csc_matrix, np.ndarray], u: np.ndarray, theta: Optional[f
     i = 0 
     while (dif > options["gausstolq"] * abs(g)) and (i < max_n):
         
-        # compute the product between the adjacency matrix and the 
+        # compute the product between the adjacency matrix and the vector
+        t0 = perf_counter()
         v = mvprod(q)
+        print(f"Tempo inizio ciclo: {perf_counter() - t0:.4f} s")            
         
         # local orthogonalization
         if options["gaussmgs"]:
             v = v - beta * q_0
-            alfa = float(q.T @ v)
+            alfa = float(np.vdot(q, v))
             v = v - alfa * q
         else:
-            alfa = float(q.T @ v)
+            alfa = float(np.vdot(q, v))
             v = v - beta * q_0 - alfa * q
             
         # global re-orthogonalization
         if options["gaussreorth"]:
             # Q[:, :i+1] previous vectors
-            v_flat = v.flatten()
+            v_flat = v.ravel()
             
             reorth_type = options["gaussreorth"]
             
@@ -146,7 +153,6 @@ def gauss_exp(A: Union[csc_matrix, np.ndarray], u: np.ndarray, theta: Optional[f
                     proj = np.dot(v_flat, q_j)
                     v_flat = v_flat - proj * q_j
                 v = v_flat.reshape(-1, 1)
-                    
             elif reorth_type == 2: # CGS
                 Q_curr = Q[:, :i+1]
                 v_flat = v_flat - Q_curr @ (Q_curr.T @ v_flat)
@@ -170,16 +176,14 @@ def gauss_exp(A: Union[csc_matrix, np.ndarray], u: np.ndarray, theta: Optional[f
             # Breakdown: exact convergence
             T[i, i] = alfa
             # compute exponential
-            T_sub = T[:i+1, :i+1]
-            S = expm_eig(T_sub, mu)
-            g = S[0, 0]
+            g = expm_eig(T[:i+1, :i+1], mu)
             gr = g
             break
         else:
             q = v / beta
             
         if options["gaussreorth"]:
-            Q[:, i+1] = q.flatten()
+            Q[:, i+1] = q.ravel()
             
         # save Lanczos coefficients
         alf[i] = alfa
@@ -191,9 +195,7 @@ def gauss_exp(A: Union[csc_matrix, np.ndarray], u: np.ndarray, theta: Optional[f
         # alf and bet are passed to the current iteration
         # In Matlab: opolyval(alf(1:i),bet(2:i+1),1,theta)
         # Python slicing: alf[:i+1], bet[1:i+2]
-        
         pm, pm1 = opolyval(alf[:i+1], bet[1:i+2], 1.0, theta)
-        
         # alfk1 (extra node for the extended quadrature)
         # alfk1 = theta - bet(i+1)*(pm1/pm)
         # bet[i+1] corresponds to the beta just calculated
@@ -207,12 +209,10 @@ def gauss_exp(A: Union[csc_matrix, np.ndarray], u: np.ndarray, theta: Optional[f
         T[i+1, i+1] = alfk1 # new node for the estimate
         
         # estimate the integral with T_k 
-        S = expm_eig(T[:i+1, :i+1], mu)
-        g = S[0, 0]
+        g = expm_eig(T[:i+1, :i+1], mu)
         
         # estimate the integral with T_{k + 1}
-        S_ext = expm_eig(T[:i+2, :i+2], mu)
-        gr = S_ext[0, 0]
+        gr = expm_eig(T[:i+2, :i+2], mu)
         
         dif = abs(gr - g) / 2.0
         
@@ -223,7 +223,7 @@ def gauss_exp(A: Union[csc_matrix, np.ndarray], u: np.ndarray, theta: Optional[f
     # bet[0] is the initial norm of u
     fval = (bet[0]**2) * (gr + g) / 2.0
     info = i
-    
+        
     e_mu = np.exp(mu)
     if np.isfinite(e_mu):
         fval = e_mu * fval
@@ -297,7 +297,7 @@ def gauss_res(A: Union[csc_matrix, np.ndarray], u: np.ndarray, alpha: float, opt
     q_0 = np.zeros_like(u)
     q = u / beta
     
-    if options["gaussreorth"]: Q[:, 0] = q.flatten()
+    if options["gaussreorth"]: Q[:, 0] = q.ravel()
 
     dif = 1000.0
     g = 0.0
@@ -313,16 +313,16 @@ def gauss_res(A: Union[csc_matrix, np.ndarray], u: np.ndarray, alpha: float, opt
         # local orthogonalization
         if options["gaussmgs"]:
             v = v - beta * q_0
-            alfa = float(q.T @ v)
+            alfa = float(np.vdot(q, v))
             v = v - alfa * q
         else:
-            alfa = float(q.T @ v)
+            alfa = float(np.vdot(q, v))
             v = v - beta * q_0 - alfa * q
             
         # global re-orthogonalization
         if options["gaussreorth"]:
             # Q[:, :i+1] previous vectors
-            v_flat = v.flatten()
+            v_flat = v.ravel()
             
             reorth_type = options["gaussreorth"]
             
@@ -357,15 +357,14 @@ def gauss_res(A: Union[csc_matrix, np.ndarray], u: np.ndarray, alpha: float, opt
             T[i, i] = alfa
             # compute exponential
             T_sub = T[:i+1, :i+1]
-            S = res(T_sub, alpha)
-            g = S[0, 0]
+            g = res(T_sub, alpha)
             gr = g
             break
         else:
             q = v / beta
             
         if options["gaussreorth"]:
-            Q[:, i+1] = q.flatten()
+            Q[:, i+1] = q.ravel()
             
         # save Lanczos coefficients
         alf[i] = alfa
@@ -393,12 +392,10 @@ def gauss_res(A: Union[csc_matrix, np.ndarray], u: np.ndarray, alpha: float, opt
         T[i+1, i+1] = alfk1 # new node for the estimate
         
         # estimate the integral with T_k 
-        S = res(T[:i+1, :i+1], alpha)
-        g = S[0, 0]
+        g = res(T[:i+1, :i+1], alpha)
         
         # estimate the integral with T_{k + 1}
-        S_ext = res(T[:i+2, :i+2], alpha)
-        gr = S_ext[0, 0]
+        gr = res(T[:i+2, :i+2], alpha)
         
         dif = abs(gr - g) / 2.0
         

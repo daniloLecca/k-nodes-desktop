@@ -3,6 +3,7 @@ import numpy as np
 import scipy
 from scipy import sparse
 from scipy.sparse import csc_matrix
+from scipy.sparse.linalg import eigsh
 from fastapi import FastAPI, File, UploadFile, Request
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -198,11 +199,7 @@ def get_gauss_res(request: ResRequest):
     try:
         u = np.zeros(network.shape[0])
         u[request.node] = 1.0
-        
-        # Compute the largest eigenvalue to determine valid alpha range
-        from scipy.sparse.linalg import eigsh
-        rho = eigsh(network, k=1, which='LA', return_eigenvectors=False)[0]
-        
+                
         val, steps = gauss_res(network, u, request.alpha)
         return {
             "res": val
