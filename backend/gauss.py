@@ -1,35 +1,31 @@
 import numpy as np
+from math import sqrt
 from scipy.sparse.linalg import eigsh
 from scipy.sparse import csc_matrix
-from scipy.linalg import norm, eigh, eigh_tridiagonal
+from scipy.linalg import norm, eigh_tridiagonal
 from typing import Optional, Tuple, Dict, Any, Union
 from time import perf_counter
 
 def expm_eig(T: np.ndarray, mu: float = 0.0) -> float:
     """
-    Compute expm(T) using spectral decomposition
-    T is the Lanczos tridiagonal matrix 
+    Compute u * exp(T) * u', where T is the Lanczos tridiagonal matrix
+
+    :param T: tridiagonal Lanczos matrix
+    :param mu: spectral shift parameter
+    :return: the computed exponent
     """
-    # Estrai diagonale principale e sotto-diagonale
-    d = np.diag(T)
-    e = np.diag(T, k=-1)
-    
-    # Calcola autovalori e autovettori in modo ottimizzato
-    eigvals, V = eigh_tridiagonal(d, e)
-    
-    # Calcola solo l'elemento (0,0) evitando la moltiplicazione di matrici
+    eigvals, V = np.linalg.eigh(T)
     exp_vals = np.exp(eigvals - mu)
-    
-    # V[0, :] è la prima riga della matrice degli autovettori
     return float(np.sum((V[0, :] ** 2) * exp_vals))
 
 def res(T: np.ndarray, alpha: float) -> float:
     """
-    Computes the resolvent (I - alpha*T)^(-1) using spectral decomposition.
+    Computes the resolvent (I - alpha*T)^(-1) using spectral decomposition and 
+    taking advantage of the structure of T (tridiagonal).
     
     :param T: Lanczos tridiagonal matrix
-    :param alpha: shift parameter (must satisfy 0 < alpha < 1/lambda_max(T))
-    :return: resolvent matrix
+    :param alpha: spectral shift parameter (must satisfy 0 < alpha < 1/lambda_max(T))
+    :return: (I - alpha*T)^(-1)
     """
     d = np.diag(T)
     e = np.diag(T, k=-1)
@@ -39,23 +35,20 @@ def res(T: np.ndarray, alpha: float) -> float:
     return float(np.sum((V[0, :] ** 2) * diag_elements))
 
 
-def opolyval(alfa: np.ndarray, beta: np.ndarray, beta0: float, x: Union[float, np.ndarray]) -> Tuple[np.ndarray, np.ndarray]:
+def opolyval(alfa: np.ndarray, beta: np.ndarray, beta0: float, x: float) -> Tuple[float, float]:
     """
     Computes orthonormal polynomials via recurrence.
     """
-    x = np.atleast_1d(x)
-    # p1 corresponds to p_0(x), p to p_1(x) ecc.
-    p1 = np.ones(x.shape) / beta0
+    p1 = 1.0 / beta0
     p = (x - alfa[0]) / beta[0]
     
     # starting from second element
     for k in range(1, len(alfa)):
         p0 = p1
         p1 = p
-        # recurrence: b_k * p_{k+1} = (x - a_k) * p_k - b_{k-1} * p_{k-1}
         p = ((x - alfa[k]) * p1 - beta[k-1] * p0) / beta[k]
         
-    return p, p1
+    return float(p), float(p1)
 
 def gauss_exp(A: Union[csc_matrix, np.ndarray], u: np.ndarray, theta: Optional[float] = None, opts: Optional[Dict[str, Any]] = None) -> Tuple[float, int]:
     """
@@ -86,18 +79,20 @@ def gauss_exp(A: Union[csc_matrix, np.ndarray], u: np.ndarray, theta: Optional[f
     if theta is None:
         # if not given, the largest eigenvalue is computed
         # 'LA' = Largest Algebraic
+        t0 = perf_counter()
         theta = eigsh(A, k=1, which='LA', return_eigenvectors=False)[0]
+        print(f"Tempo eigsh: {perf_counter() - t0:.4f} s")            
 
     # Use options["gaussmu"] if explicitly set (even if 0.0), otherwise use theta
     mu = theta if options["gaussmu"] is None else options["gaussmu"]
     
     # making sure that u is a column vector
-    u = np.array(u).reshape(-1, 1)
+    u = np.array(u, dtype=np.float64).ravel()
     m = u.shape[0]
     
     # matrix-vector product operator
-    
-    mvprod = lambda x: A @ x
+    A_csr = A.tocsr()
+    mvprod = lambda x: A_csr.dot(x)
 
     beta = norm(u)
     sqrt_eps = np.sqrt(np.finfo(float).eps)
@@ -123,21 +118,20 @@ def gauss_exp(A: Union[csc_matrix, np.ndarray], u: np.ndarray, theta: Optional[f
     
     # Lanczos loop
     i = 0 
+    t0 = perf_counter()
     while (dif > options["gausstolq"] * abs(g)) and (i < max_n):
         
         # compute the product between the adjacency matrix and the vector
-        t0 = perf_counter()
-        v = mvprod(q)
-        print(f"Tempo inizio ciclo: {perf_counter() - t0:.4f} s")            
         
+        v = mvprod(q)
         # local orthogonalization
         if options["gaussmgs"]:
-            v = v - beta * q_0
-            alfa = float(np.vdot(q, v))
-            v = v - alfa * q
+            v -= beta * q_0
+            alfa = float(q.dot(v))
+            v -= alfa * q
         else:
-            alfa = float(np.vdot(q, v))
-            v = v - beta * q_0 - alfa * q
+            alfa = float(q.dot(v))
+            v -= beta * q_0 - alfa * q
             
         # global re-orthogonalization
         if options["gaussreorth"]:
@@ -149,27 +143,26 @@ def gauss_exp(A: Union[csc_matrix, np.ndarray], u: np.ndarray, theta: Optional[f
             if reorth_type == 1: # MGS
                 for j in range(i + 1):
                     q_j = Q[:, j]
-            
                     proj = np.dot(v_flat, q_j)
-                    v_flat = v_flat - proj * q_j
+                    v_flat -= proj * q_j
                 v = v_flat.reshape(-1, 1)
             elif reorth_type == 2: # CGS
                 Q_curr = Q[:, :i+1]
-                v_flat = v_flat - Q_curr @ (Q_curr.T @ v_flat)
+                v_flat -= Q_curr @ (Q_curr.T @ v_flat)
                 v = v_flat.reshape(-1, 1)
                 
             elif reorth_type == 3: # Double CGS
                 Q_curr = Q[:, :i+1]
                 c = Q_curr.T @ v_flat
-                v_flat = v_flat - Q_curr @ c
+                v_flat -= Q_curr @ c
                 if norm(c) > sqrt_eps: # second step if necessary
                     c1 = Q_curr.T @ v_flat
-                    v_flat = v_flat - Q_curr @ c1
+                    v_flat -= Q_curr @ c1
                 v = v_flat.reshape(-1, 1)
 
         # update of beta
-        beta = norm(v)
-        q_0 = q.copy() # save current q for the next step
+        beta = sqrt(v.dot(v))
+        q_0 = q # save current q for the next step
         
         # Check breakdown
         if beta < options["gausstau"]:
@@ -217,13 +210,13 @@ def gauss_exp(A: Union[csc_matrix, np.ndarray], u: np.ndarray, theta: Optional[f
         dif = abs(gr - g) / 2.0
         
         i += 1 
-        
+    print(f"Tempo fine ciclo: {perf_counter() - t0:.4f} s")            
     # final result
     # fval = bet(1)^2 * (gr + g)/2
     # bet[0] is the initial norm of u
     fval = (bet[0]**2) * (gr + g) / 2.0
     info = i
-        
+
     e_mu = np.exp(mu)
     if np.isfinite(e_mu):
         fval = e_mu * fval
@@ -241,9 +234,9 @@ def gauss_exp(A: Union[csc_matrix, np.ndarray], u: np.ndarray, theta: Optional[f
 
 
 
-def gauss_res(A: Union[csc_matrix, np.ndarray], u: np.ndarray, alpha: float, opts: Optional[Dict[str, Any]] = None) -> Tuple[float, int]:
+def gauss_res(A: Union[csc_matrix, np.ndarray], u: np.ndarray, rho: float, alpha: float, opts: Optional[Dict[str, Any]] = None) -> Tuple[float, int]:
     """
-    Computes u' * expm(A) * u using Gauss quadrature.
+    Computes (A - alpha*I)^(-1) Gauss quadrature.
     
     :param A: csc_matrix or ndarray
     :param u: column vector
@@ -264,9 +257,6 @@ def gauss_res(A: Union[csc_matrix, np.ndarray], u: np.ndarray, alpha: float, opt
     # options merge
     options = {**default_opts, **opts}
     
-    # Get largest algebraic eigenvalue (for symmetric matrices like adjacency matrices)
-    rho = eigsh(A, k=1, which='LM', return_eigenvectors=False)[0]
-    
     # Validate alpha is in valid range
     if not (0 < alpha < 1 / rho):
         raise ValueError(f"alpha must be in (0, {1/rho:.6f}), got {alpha}")
@@ -275,11 +265,12 @@ def gauss_res(A: Union[csc_matrix, np.ndarray], u: np.ndarray, alpha: float, opt
     theta = rho
     
     # making sure that u is a column vector
-    u = np.array(u).reshape(-1, 1)
+    u = np.array(u, dtype=np.float64).ravel()
     m = u.shape[0]
     
     # matrix-vector product operator
-    mvprod = lambda x: A @ x
+    A_csr = A.tocsr()
+    mvprod = lambda x: A_csr.dot(x)
 
     beta = norm(u)
     sqrt_eps = np.sqrt(np.finfo(float).eps)
@@ -312,12 +303,12 @@ def gauss_res(A: Union[csc_matrix, np.ndarray], u: np.ndarray, alpha: float, opt
         
         # local orthogonalization
         if options["gaussmgs"]:
-            v = v - beta * q_0
-            alfa = float(np.vdot(q, v))
-            v = v - alfa * q
+            v -= beta * q_0
+            alfa = float(q.dot(v))
+            v -= alfa * q
         else:
-            alfa = float(np.vdot(q, v))
-            v = v - beta * q_0 - alfa * q
+            alfa = float(q.dot(v))
+            v -= beta * q_0 - alfa * q
             
         # global re-orthogonalization
         if options["gaussreorth"]:
@@ -330,26 +321,26 @@ def gauss_res(A: Union[csc_matrix, np.ndarray], u: np.ndarray, alpha: float, opt
                 for j in range(i + 1):
                     q_j = Q[:, j]
                     proj = np.dot(v_flat, q_j)
-                    v_flat = v_flat - proj * q_j
+                    v_flat -= proj * q_j
                 v = v_flat.reshape(-1, 1)
                     
             elif reorth_type == 2: # CGS
                 Q_curr = Q[:, :i+1]
-                v_flat = v_flat - Q_curr @ (Q_curr.T @ v_flat)
+                v_flat -= Q_curr @ (Q_curr.T @ v_flat)
                 v = v_flat.reshape(-1, 1)
                 
             elif reorth_type == 3: # Double CGS
                 Q_curr = Q[:, :i+1]
                 c = Q_curr.T @ v_flat
-                v_flat = v_flat - Q_curr @ c
+                v_flat -= Q_curr @ c
                 if norm(c) > sqrt_eps: # second step if necessary
                     c1 = Q_curr.T @ v_flat
-                    v_flat = v_flat - Q_curr @ c1
+                    v_flat -= Q_curr @ c1
                 v = v_flat.reshape(-1, 1)
 
         # update of beta
-        beta = norm(v)
-        q_0 = q.copy() # save current q for the next step
+        beta = sqrt(v.dot(v))
+        q_0 = q # save current q for the next step
         
         # Check breakdown
         if beta < options["gausstau"]:

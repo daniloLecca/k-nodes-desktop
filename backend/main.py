@@ -10,6 +10,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import Response
 from utils import get_clusters, ClusterRequest, ExpRequest, ResRequest
 from gauss import gauss_exp, gauss_res
+from secrets import token_urlsafe
 
 # Middleware per limitare la dimensione del body
 class BodySizeLimitMiddleware(BaseHTTPMiddleware):
@@ -37,6 +38,7 @@ app.add_middleware(BodySizeLimitMiddleware, max_body_size=100 * 1024 * 1024)  # 
 # TODO: add expiring for this variables, only needed for when it will be deployed
 clusters = {}
 network: csc_matrix = None # the adjacency matrix
+leig: float = 0.0
 
 
 @app.get("/api/")
@@ -61,7 +63,7 @@ async def overview(file: UploadFile = File(...)):
         "numberOfClusters": int
     }
     """
-    global clusters, network
+    global clusters, network, leig
     
     # check that the file sent in the body has .mat extension
     if not file.filename.endswith('.mat'):
@@ -115,6 +117,7 @@ async def overview(file: UploadFile = File(...)):
                 }
             )
         
+        leig = eigsh(network, k=1, which='LA', return_eigenvectors=False)[0]
         clusters = get_clusters(adj)
         size_of_clusters = {}
 
@@ -173,7 +176,7 @@ def get_gauss_exp(request: ExpRequest):
 
     u = np.zeros(network.shape[0])
     u[request.node] = 1.0
-    val, steps = gauss_exp(network, u)
+    val, steps = gauss_exp(network, u, leig)
     return {
         "exp": val, 
         "steps": steps
@@ -183,7 +186,6 @@ def get_gauss_exp(request: ExpRequest):
 def get_gauss_res(request: ResRequest):
     """
     Computes the resolvent using Gauss quadrature.
-    Uses a default alpha value of 0.85 / lambda_max.
     
     Response JSON:
     {
@@ -200,7 +202,7 @@ def get_gauss_res(request: ResRequest):
         u = np.zeros(network.shape[0])
         u[request.node] = 1.0
                 
-        val, steps = gauss_res(network, u, request.alpha)
+        val, steps = gauss_res(network, u, leig, request.alpha)
         return {
             "res": val
         }
