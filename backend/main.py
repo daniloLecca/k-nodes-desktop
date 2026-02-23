@@ -1,6 +1,7 @@
 import io
 import numpy as np
 import scipy
+import generate as gnt
 from scipy import sparse
 from scipy.sparse import csc_matrix
 from scipy.sparse.linalg import eigsh
@@ -8,7 +9,7 @@ from fastapi import FastAPI, File, UploadFile, Request
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import Response
-from utils import get_clusters, ClusterRequest, ExpRequest, ResRequest
+from utils import get_clusters, ClusterRequest, ExpRequest, ResRequest, RandomComplexNetworkRequest
 from gauss import gauss_exp, gauss_res
 from secrets import token_urlsafe
 
@@ -128,7 +129,7 @@ async def overview(file: UploadFile = File(...)):
         return {
             "filename": file.filename,
             "nodes": int(list(adj.shape)[0]),
-            "edges": int(adj.size), 
+            "edges": int(adj.nnz), 
             "clusters": size_of_clusters,
             "numberOfClusters": len(size_of_clusters.keys()), 
         }
@@ -211,3 +212,21 @@ def get_gauss_res(request: ResRequest):
             status_code=500,
             content={"error": f"Error computing resolvent: {str(e)}"}
         )
+    
+@app.post("/api/random")
+def get_random_complex_network(request: RandomComplexNetworkRequest): 
+    global network, leig, clusters
+    if request.model == "scale_free": 
+        network = gnt.generate_scale_free_complex_network(request.nnodes, request.k)
+    else:
+        network = gnt.generate_small_world_complex_network(request.nnodes, request.k, request.p)
+
+    leig = eigsh(network, k=1, which='LA', return_eigenvectors=False)[0]
+    clusters = get_clusters(network)
+
+    return {
+        "nodes": network.shape[0], 
+        "edges": network.nnz, 
+        "largest_eigenvalue": leig, 
+        "clusters": clusters
+    }

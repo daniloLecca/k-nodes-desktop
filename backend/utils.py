@@ -2,7 +2,8 @@ from sknetwork.clustering import Louvain
 from scipy.sparse import csc_matrix
 from scipy.sparse.linalg import eigsh
 from collections import defaultdict
-from pydantic import BaseModel
+from pydantic import BaseModel, model_validator
+from typing import Union, Literal
 
 class ComplexNetwork():
     adj: csc_matrix
@@ -72,3 +73,23 @@ class ExpRequest(BaseModel):
 
 class ResRequest(ExpRequest):
     alpha: float
+
+class RandomComplexNetworkRequest(BaseModel):
+    nnodes: int
+    model: Literal["small_world", "scale_free"]
+    k: int
+    p: float | None = None
+
+    @model_validator(mode="after")
+    def check_p_consistency(self):
+        if self.model == "small_world":
+            if self.p is None:
+                raise ValueError(f"'p' is required for 'watts_strogatz' model")
+            if not (0 <= self.p <= 1):
+                raise ValueError("'p' must be between 0 and 1")
+
+        if self.model == "scale_free":
+            if self.p is not None:
+                raise ValueError("'p' must not be provided for 'barabasi_albert'")
+
+        return self
