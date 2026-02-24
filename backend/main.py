@@ -1,6 +1,7 @@
 import io
 import numpy as np
 import scipy
+import asyncio
 import generate as gnt
 from scipy import sparse
 from scipy.sparse import csc_matrix
@@ -10,7 +11,9 @@ from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import Response
 from utils import get_clusters, ClusterRequest, ExpRequest, ResRequest, RandomComplexNetworkRequest
+from utils import LowRankSubgraphCentrality
 from gauss import gauss_exp, gauss_res
+from lowrank import sgcenlr
 from secrets import token_urlsafe
 
 # Middleware per limitare la dimensione del body
@@ -229,4 +232,41 @@ def get_random_complex_network(request: RandomComplexNetworkRequest):
         "edges": network.nnz, 
         "largest_eigenvalue": leig, 
         "clusters": clusters
+    }
+
+@app.post("/api/sgclr")
+async def get_sgclr(request: LowRankSubgraphCentrality):
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    options = {
+        "sgcmaxn": request.max_iter or 30, 
+        "sgcmaxva": 200,  # max eigenvector database
+        "sgctoll": request.tol or 1e-3,  # tolerance for approximation loop
+        "sgctau": 1e-4, # tolerance for weak convergence
+        "sgcminkappa": 5,  # min size of additional nodes in the case of weak convergence
+        "sgcmaxkappa": 100,  # max size of additional nodes in the case of weak convergence
+        "sgcshift": request.shift if request.shift is not None else True, 
+        "alpha": request.alpha or 0.0, 
+        "k": request.batch_size or 20,  # batch size for primme
+        "tol": 1e-5,  # tolerance for primme
+        "primme_maxiter": 5000,  # max number of iterations for primme
+        "return_S": True  
+    }
+
+    if network is None:
+        return JSONResponse(
+            status_code=400, 
+            content={"error": "network not initialized yet. First send a .mat file to /api/."}
+        )
+    
+    logger.info(f"Starting sgclr computation with {network.shape[0]} nodes, fun={request.fun_name}, nnodes={request.nnodes}")
+    vip_nodes, vip_sgc, candidates_history = sgcenlr(network, request.fun_name or "exp", request.nnodes or 1, options)
+    
+    # TODO: check default parameters to prevent missing convergence
+
+    return {
+        "vip_nodes": vip_nodes.tolist(),
+        "vip_sgc": vip_sgc.tolist(),
+        "candidates_history": [c.tolist() for c in candidates_history]
     }
