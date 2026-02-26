@@ -102,3 +102,6 @@ class LowRankSubgraphCentrality(BaseModel):
     max_iter: int | None = None
     batch_size: int | None = None
     tol: float | None = None
+
+class LowRankCommunicability(LowRankSubgraphCentrality):
+    i: int

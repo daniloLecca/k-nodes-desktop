@@ -1,7 +1,7 @@
 import io
 import numpy as np
 import scipy
-import asyncio
+import logging
 import generate as gnt
 from scipy import sparse
 from scipy.sparse import csc_matrix
@@ -11,19 +11,19 @@ from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import Response
 from utils import get_clusters, ClusterRequest, ExpRequest, ResRequest, RandomComplexNetworkRequest
-from utils import LowRankSubgraphCentrality
+from utils import LowRankSubgraphCentrality, LowRankCommunicability
 from gauss import gauss_exp, gauss_res
-from lowrank import sgcenlr
+from lowrank import sgcenlr, commlr
 from secrets import token_urlsafe
 
-# Middleware per limitare la dimensione del body
+# middleware to limit body size (of the HTTP request)
 class BodySizeLimitMiddleware(BaseHTTPMiddleware):
-    def __init__(self, app, max_body_size: int = 100 * 1024 * 1024):  # Default 100 MB
+    def __init__(self, app, max_body_size: int = 100 * 1024 * 1024):  # default: 100MB
         super().__init__(app)
         self.max_body_size = max_body_size
     
     async def dispatch(self, request: Request, call_next):
-        # Controlla la dimensione del content-length se presente nell'header
+        # checks content-length in the header
         content_length = request.headers.get('content-length')
         if content_length and int(content_length) > self.max_body_size:
             return JSONResponse(
@@ -36,13 +36,13 @@ class BodySizeLimitMiddleware(BaseHTTPMiddleware):
 
 app = FastAPI()
 
-# Aggiungi il middleware all'applicazione
+# adds middleware
 app.add_middleware(BodySizeLimitMiddleware, max_body_size=100 * 1024 * 1024)  # 100 MB
 
 # TODO: add expiring for this variables, only needed for when it will be deployed
 clusters = {}
 network: csc_matrix = None # the adjacency matrix
-leig: float = 0.0
+leig: float = 0.0 # largest eigenvalue
 
 
 @app.get("/api/")
@@ -240,10 +240,10 @@ async def get_sgclr(request: LowRankSubgraphCentrality):
     logger = logging.getLogger(__name__)
     
     options = {
-        "sgcmaxn": request.max_iter or 30, 
+        "sgcmaxn": request.max_iter or 300, 
         "sgcmaxva": 200,  # max eigenvector database
         "sgctoll": request.tol or 1e-3,  # tolerance for approximation loop
-        "sgctau": 1e-4, # tolerance for weak convergence
+        "sgctau": 1e-3, # tolerance for weak convergence
         "sgcminkappa": 5,  # min size of additional nodes in the case of weak convergence
         "sgcmaxkappa": 100,  # max size of additional nodes in the case of weak convergence
         "sgcshift": request.shift if request.shift is not None else True, 
@@ -261,12 +261,51 @@ async def get_sgclr(request: LowRankSubgraphCentrality):
         )
     
     logger.info(f"Starting sgclr computation with {network.shape[0]} nodes, fun={request.fun_name}, nnodes={request.nnodes}")
-    vip_nodes, vip_sgc, candidates_history = sgcenlr(network, request.fun_name or "exp", request.nnodes or 1, options)
+    vip_nodes, vip_sgc, num_eigs, candidates_history = sgcenlr(network, request.fun_name or "exp", request.nnodes or 1, options)
     
     # TODO: check default parameters to prevent missing convergence
 
     return {
         "vip_nodes": vip_nodes.tolist(),
         "vip_sgc": vip_sgc.tolist(),
+        "used_eigenpairs": num_eigs, 
+        "candidates_history": [c.tolist() for c in candidates_history]
+    }
+
+
+@app.post("/api/commlr")
+async def get_commlr(request: LowRankCommunicability):
+    logger = logging.getLogger(__name__)
+    
+    options = {
+        "sgcmaxn": request.max_iter or 300, 
+        "sgcmaxva": 200,  # max eigenvector database
+        "sgctoll": request.tol or 0,  # tolerance for approximation loop
+        "sgctau": 1e-1, # tolerance for weak convergence
+        "sgcminkappa": 1,  # min size of additional nodes in the case of weak convergence
+        "sgcmaxkappa": 100,  # max size of additional nodes in the case of weak convergence
+        "sgcshift": request.shift if request.shift is not None else True, 
+        "alpha": request.alpha or 0.0, 
+        "k": request.batch_size or 20,  # batch size for primme
+        "tol": 1e-3,  # tolerance for primme
+        "primme_maxiter": 5000,  # max number of iterations for primme
+        "return_S": True  
+    }
+
+    if network is None:
+        return JSONResponse(
+            status_code=400, 
+            content={"error": "network not initialized yet. First send a .mat file to /api/."}
+        )
+    
+    logger.info(f"Starting commlr computation with {network.shape[0]} nodes, fun={request.fun_name}, nnodes={request.nnodes}")
+    vip_nodes, vip_comm, num_eigs, candidates_history = commlr(network, request.i, request.fun_name or "exp", request.nnodes or 1, options)
+    
+    # TODO: check default parameters to prevent missing convergence
+
+    return {
+        "vip_nodes": vip_nodes.tolist(),
+        "vip_comm": vip_comm.tolist(),
+        "used_eigenpairs": num_eigs, 
         "candidates_history": [c.tolist() for c in candidates_history]
     }
