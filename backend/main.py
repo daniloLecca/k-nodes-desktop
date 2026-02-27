@@ -13,7 +13,7 @@ from starlette.responses import Response
 from utils import get_clusters, ClusterRequest, ExpRequest, ResRequest, RandomComplexNetworkRequest
 from utils import LowRankSubgraphCentrality, LowRankCommunicability
 from gauss import gauss_exp, gauss_res
-from lowrank import sgcenlr, commlr
+from lowrank import sgcenlr, commlr, stconvlr
 from secrets import token_urlsafe
 
 # middleware to limit body size (of the HTTP request)
@@ -236,7 +236,6 @@ def get_random_complex_network(request: RandomComplexNetworkRequest):
 
 @app.post("/api/sgclr")
 async def get_sgclr(request: LowRankSubgraphCentrality):
-    import logging
     logger = logging.getLogger(__name__)
     
     options = {
@@ -306,6 +305,43 @@ async def get_commlr(request: LowRankCommunicability):
     return {
         "vip_nodes": vip_nodes.tolist(),
         "vip_comm": vip_comm.tolist(),
+        "used_eigenpairs": num_eigs, 
+        "candidates_history": [c.tolist() for c in candidates_history]
+    }
+
+@app.post("/api/stconvlr")
+async def get_stconvlr(request: LowRankSubgraphCentrality):
+    logger = logging.getLogger(__name__)
+    
+    options = {
+        "sgcmaxn": request.max_iter or 300, 
+        "sgcmaxva": 200,  # max eigenvector database
+        "sgctoll": request.tol or 0,  # tolerance for approximation loop
+        "sgctau": 1e-3, # tolerance for weak convergence
+        "sgcminkappa": 1,  # min size of additional nodes in the case of weak convergence
+        "sgcmaxkappa": 100,  # max size of additional nodes in the case of weak convergence
+        "sgcshift": request.shift if request.shift is not None else True, 
+        "alpha": request.alpha or 0.0, 
+        "k": request.batch_size or 20,  # batch size for primme
+        "tol": 1e-3,  # tolerance for primme
+        "primme_maxiter": 5000,  # max number of iterations for primme
+        "return_S": True  
+    }
+
+    if network is None:
+        return JSONResponse(
+            status_code=400, 
+            content={"error": "network not initialized yet. First send a .mat file to /api/."}
+        )
+    
+    logger.info(f"Starting sgclr computation with {network.shape[0]} nodes, fun={request.fun_name}, nnodes={request.nnodes}")
+    vip_nodes, vip_stconv, num_eigs, candidates_history = stconvlr(network, request.fun_name or "exp", request.nnodes or 1, options)
+    
+    # TODO: check default parameters to prevent missing convergence
+
+    return {
+        "vip_nodes": vip_nodes.tolist(),
+        "vip_stconv": vip_stconv.tolist(),
         "used_eigenpairs": num_eigs, 
         "candidates_history": [c.tolist() for c in candidates_history]
     }
