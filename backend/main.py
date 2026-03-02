@@ -11,8 +11,8 @@ from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import Response
 from utils import get_clusters, ClusterRequest, ExpRequest, ResRequest, RandomComplexNetworkRequest
-from utils import LowRankSubgraphCentrality, LowRankCommunicability
-from gauss import gauss_exp, gauss_res
+from utils import LowRankSubgraphCentrality, LowRankCommunicability, GaussSubgraphCentrality, GaussCommunicability
+from gauss import gauss_exp, gauss_res, sgcengauss, commgauss, stconvgauss
 from lowrank import sgcenlr, commlr, stconvlr
 from secrets import token_urlsafe
 
@@ -105,9 +105,11 @@ async def overview(file: UploadFile = File(...)):
                 }
             )
 
+        number_of_self_loops: int = 0
         # convert the sparse matrix in column sparse format if it's not already
         if sparse.issparse(adj):
             adj = adj.tocsc()
+            number_of_self_loops = np.sum(adj.diagonal())
             adj.setdiag(0) # all the elements in the diagonal will be equal to 0
             # TODO: check if there were self loops (compare the original diagonal with a 
             # diagonal of zeros)
@@ -133,6 +135,8 @@ async def overview(file: UploadFile = File(...)):
             "filename": file.filename,
             "nodes": int(list(adj.shape)[0]),
             "edges": int(adj.nnz), 
+            "largest eigenvalue": leig,
+            "self loops": int(number_of_self_loops),
             "clusters": size_of_clusters,
             "numberOfClusters": len(size_of_clusters.keys()), 
         }
@@ -344,4 +348,85 @@ async def get_stconvlr(request: LowRankSubgraphCentrality):
         "vip_stconv": vip_stconv.tolist(),
         "used_eigenpairs": num_eigs, 
         "candidates_history": [c.tolist() for c in candidates_history]
+    }
+
+@app.post("/api/sgcgauss")
+async def get_sgcgauss(request: GaussSubgraphCentrality):
+
+    if network is None:
+        return JSONResponse(
+            status_code=400, 
+            content={"error": "network not initialized yet. First send a .mat file to /api/."}
+        )
+
+    options = {
+        "gausstolq": request.tol or 1e-3, 
+        "gaussmaxn": request.max_iter or 200,
+        "gaussmu": leig,
+        "alpha": request.alpha or 0.0
+    }
+
+    vip_nodes, vip_sgc, info, iters, allsgc = sgcengauss(network, request.fun_name or "exp", request.nnodes or 1, options)
+
+    return {
+        "vip_nodes": vip_nodes.tolist(), 
+        "vip_sgc": vip_sgc.tolist(), 
+        "convergence": "exceeded max iterations number" if info else "satisfied", 
+        "matrix vector products": iters.tolist(), 
+        "all subgraph centralities": allsgc.tolist()
+    }
+
+@app.post("/api/commgauss")
+async def get_commgauss(request: GaussCommunicability):
+    if network is None:
+        return JSONResponse(
+            status_code=400, 
+            content={"error": "network not initialized yet. First send a .mat file to /api/."}
+        )
+
+    options = {
+        "gausstolq": request.tol or 1e-3, 
+        "gaussmaxn": request.max_iter or 200,
+        "alpha": request.alpha or 0.0
+    }
+
+    vip_nodes, vip_comm, info, iters, allcomm = commgauss(network, request.i, request.fun_name or "exp", request.nnodes or 1, options)
+
+    return {
+        "vip_nodes": vip_nodes.tolist(), 
+        "vip_comm": vip_comm.tolist(), 
+        "convergence": "exceeded max iterations number" if info else "satisfied", 
+        "matrix vector products": iters.tolist(), 
+        "all communicatibilites": allcomm.tolist()
+    }
+
+@app.post("/api/stconvgauss")
+async def get_stconvgauss(request: GaussSubgraphCentrality):
+
+    if network is None:
+        return JSONResponse(
+            status_code=400, 
+            content={"error": "network not initialized yet. First send a .mat file to /api/."}
+        )
+
+    options = {
+        "gausstolq": request.tol or 1e-3, 
+        "gaussmaxn": request.max_iter or 200,
+        "gaussmu": leig,
+        "alpha": request.alpha or 0.0
+    }
+
+    vip_nodes, vip_stconv, info, iters, allstconv = stconvgauss(network, request.fun_name or "exp", request.nnodes or 1, options)
+
+    # Replace non-finite values with 0.0 to make JSON compliant
+    vip_stconv = np.nan_to_num(vip_stconv, nan=0.0, posinf=0.0, neginf=0.0)
+    allstconv = np.nan_to_num(allstconv, nan=0.0, posinf=0.0, neginf=0.0)
+    iters = np.nan_to_num(iters, nan=0.0, posinf=0.0, neginf=0.0)
+
+    return {
+        "vip_nodes": vip_nodes.tolist(), 
+        "vip_stconv": vip_stconv.tolist(), 
+        "convergence": "exceeded max iterations number" if info else "satisfied", 
+        "matrix vector products": iters.tolist(), 
+        "all subgraph centralities": allstconv.tolist()
     }

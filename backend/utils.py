@@ -105,3 +105,13 @@ class LowRankSubgraphCentrality(BaseModel):
 
 class LowRankCommunicability(LowRankSubgraphCentrality):
     i: int
+
+class GaussSubgraphCentrality(BaseModel):
+    nnodes: int | None = None
+    fun_name: str | None = None
+    alpha: float | None = None
+    max_iter: int | None = None
+    tol: float | None = None
+
+class GaussCommunicability(GaussSubgraphCentrality):
+    i: int
