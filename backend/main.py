@@ -14,6 +14,7 @@ from utils import get_clusters, ClusterRequest, ExpRequest, ResRequest, RandomCo
 from utils import LowRankSubgraphCentrality, LowRankCommunicability, GaussSubgraphCentrality, GaussCommunicability
 from gauss import gauss_exp, gauss_res, sgcengauss, commgauss, stconvgauss
 from lowrank import sgcenlr, commlr, stconvlr
+from hybrid import sgcenhyb, commhyb, stconvhyb
 from secrets import token_urlsafe
 
 # middleware to limit body size (of the HTTP request)
@@ -418,10 +419,6 @@ async def get_stconvgauss(request: GaussSubgraphCentrality):
 
     vip_nodes, vip_stconv, info, iters, allstconv = stconvgauss(network, request.fun_name or "exp", request.nnodes or 1, options)
 
-    # Replace non-finite values with 0.0 to make JSON compliant
-    vip_stconv = np.nan_to_num(vip_stconv, nan=0.0, posinf=0.0, neginf=0.0)
-    allstconv = np.nan_to_num(allstconv, nan=0.0, posinf=0.0, neginf=0.0)
-    iters = np.nan_to_num(iters, nan=0.0, posinf=0.0, neginf=0.0)
 
     return {
         "vip_nodes": vip_nodes.tolist(), 
@@ -429,4 +426,135 @@ async def get_stconvgauss(request: GaussSubgraphCentrality):
         "convergence": "exceeded max iterations number" if info else "satisfied", 
         "matrix vector products": iters.tolist(), 
         "all subgraph centralities": allstconv.tolist()
+    }
+
+@app.post("/api/sgchyb")
+async def get_sgchyb(request: GaussSubgraphCentrality):
+
+    if network is None:
+        return JSONResponse(
+            status_code=400, 
+            content={"error": "network not initialized yet. First send a .mat file to /api/."}
+        )
+
+    options = {
+        "sgcmaxn": request.max_iter or 300, 
+        "sgcmaxva": 200,
+        "sgctoll": 1e-3,
+        "sgctau": 1e-1,
+        "sgcminkappa": 5,
+        "sgcmaxkappa": 100,
+        "sgcshift": True,
+        "alpha": request.alpha or 0.0,
+        "k": 20,
+        "tol": 1e-5,
+        "primme_maxiter": 5000,
+        "return_S": True,
+        "gausstolq": request.tol or 1e-3,
+        "gaussmaxn": 200,
+        "gaussmu": leig
+    }
+
+    logger = logging.getLogger(__name__)
+    logger.info(f"Starting sgchyb computation with {network.shape[0]} nodes, fun={request.fun_name}, nnodes={request.nnodes}")
+    vip_nodes, vip_sgc, info, iters, allsgc, vip_lr, vipsgc_lr, realN_lr, S_history_lr, convergence = sgcenhyb(network, request.fun_name or "exp", request.nnodes or 1, options)
+    logger.info(f"vipnodes: {vip_nodes}")
+    return {
+        "vip_nodes": vip_nodes.tolist(),
+        "vip_sgc": vip_sgc.tolist(),
+        "convergence_gauss": "exceeded max iterations number" if info else "satisfied",
+        "convergence_lowrank": convergence,
+        "matrix_vector_products": iters.tolist(),
+        "all_subgraph_centralities": allsgc.tolist(),
+        "vip_lowrank": vip_lr.tolist(),
+        "vipsgc_lowrank": vipsgc_lr.tolist(),
+        "used_eigenpairs": int(realN_lr),
+        "candidates_history": [c.tolist() for c in S_history_lr]
+    }
+
+@app.post("/api/commhyb")
+async def get_commhyb(request: GaussCommunicability):
+
+    if network is None:
+        return JSONResponse(
+            status_code=400, 
+            content={"error": "network not initialized yet. First send a .mat file to /api/."}
+        )
+
+    options = {
+        "sgcmaxn": request.max_iter or 300,
+        "sgcmaxva": 200,
+        "sgctoll": 1e-3,
+        "sgctau": 1e-1,
+        "sgcminkappa": 5,
+        "sgcmaxkappa": 100,
+        "sgcshift": True,
+        "alpha": request.alpha or 0.0,
+        "k": 20,
+        "tol": 1e-5,
+        "primme_maxiter": 5000,
+        "return_S": True,
+        "gausstolq": request.tol or 1e-3,
+        "gaussmaxn": 200
+    }
+    
+    logger = logging.getLogger(__name__)
+    logger.info(f"Starting commhyb computation with {network.shape[0]} nodes, fun={request.fun_name}, nnodes={request.nnodes}")
+    vip_nodes, vip_comm, info, iters, allcomm, vip_lr_local, vipcomm_lr_local, realN_lr, S_history_lr, convergence = commhyb(network, request.i, request.fun_name or "exp", request.nnodes or 1, options)
+
+    return {
+        "vip_nodes": vip_nodes.tolist(),
+        "vip_comm": vip_comm.tolist(),
+        "convergence_gauss": "exceeded max iterations number" if info else "satisfied",
+        "convergence_lowrank": convergence,
+        "matrix_vector_products": iters.tolist(),
+        "all_communicabilities": allcomm.tolist(),
+        "vip_lowrank": vip_lr_local.tolist(),
+        "vipcomm_lowrank": vipcomm_lr_local.tolist(),
+        "used_eigenpairs": int(realN_lr),
+        "candidates_history": [c.tolist() for c in S_history_lr]
+    }
+
+@app.post("/api/stconvhyb")
+async def get_stconvhyb(request: GaussSubgraphCentrality):
+
+    if network is None:
+        return JSONResponse(
+            status_code=400, 
+            content={"error": "network not initialized yet. First send a .mat file to /api/."}
+        )
+
+    options = {
+        "sgcmaxn": request.max_iter or 300,
+        "sgcmaxva": 200,
+        "sgctoll": 1e-3,
+        "sgctau": 1e-1,
+        "sgcminkappa": 5,
+        "sgcmaxkappa": 100,
+        "sgcshift": True,
+        "alpha": request.alpha or 0.0,
+        "k": 20,
+        "tol": 1e-5,
+        "primme_maxiter": 5000,
+        "return_S": True,
+        "gausstolq": request.tol or 1e-3,
+        "gaussmaxn": 200,
+        "gaussmu": leig
+    }
+
+    logger = logging.getLogger(__name__)
+    logger.info(f"Starting stconvhyb computation with {network.shape[0]} nodes, fun={request.fun_name}, nnodes={request.nnodes}")
+    vip_nodes, vip_stconv, info, iters, allstconv, vip_lr, vipstconv_lr, realN_lr, S_history_lr, convergence = stconvhyb(network, request.fun_name or "exp", request.nnodes or 1, options)
+
+    return {
+        "vip_nodes": vip_nodes.tolist(),
+        "vip_stconv": vip_stconv.tolist(),
+        "convergence_gauss": "exceeded max iterations number" if info else "satisfied",
+        "convergence_lowrank": convergence,
+        "matrix_vector_products": iters.tolist(),
+        "all_starting_conveniences": allstconv.tolist(),
+        "vip_lowrank": vip_lr.tolist(),
+        "vipstconv_lowrank": vipstconv_lr.tolist(),
+        "used_eigenpairs": int(realN_lr),
+        "candidates_history": [c.tolist() for c in S_history_lr]
     }
