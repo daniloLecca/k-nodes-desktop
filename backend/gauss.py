@@ -67,10 +67,10 @@ def gauss_exp(A: Union[csc_matrix, np.ndarray], u: np.ndarray, theta: Optional[f
     """
     # default options
     default_opts = {
-        "gausstolq": 1e-3,
+        "gauss_tol": 1e-3,
         "gausstau": 1e-10,
-        "gaussmaxn": 100,
-        "gaussmu": None,     # if None then default is theta
+        "gauss_max_iterations": 100,
+        "gauss_largest_eigenvalue": None,     # if None then default is theta
         "gaussreorth": 0,    # 0: no, 1: MGS, 2: CGS, 3: Double CGS
         "gaussmgs": True     # True for using MGS in the main step
     }
@@ -88,8 +88,8 @@ def gauss_exp(A: Union[csc_matrix, np.ndarray], u: np.ndarray, theta: Optional[f
         theta = eigsh(A, k=1, which='LA', return_eigenvectors=False)[0]
         print(f"Tempo eigsh: {perf_counter() - t0:.4f} s")            
 
-    # Use options["gaussmu"] if explicitly set (even if 0.0), otherwise use theta
-    mu = theta if options["gaussmu"] is None else options["gaussmu"]
+    # Use options["gauss_largest_eigenvalue"] if explicitly set (even if 0.0), otherwise use theta
+    mu = theta if options["gauss_largest_eigenvalue"] is None else options["gauss_largest_eigenvalue"]
     
     # making sure that u is a column vector
     u = np.array(u, dtype=np.float64).ravel()
@@ -103,7 +103,7 @@ def gauss_exp(A: Union[csc_matrix, np.ndarray], u: np.ndarray, theta: Optional[f
     sqrt_eps = np.sqrt(np.finfo(float).eps)
     
     # max iterations number, (the max number of iterations can't be larger than the number of rows of the matrix A)
-    max_n = min(options["gaussmaxn"], m)
+    max_n = min(options["gauss_max_iterations"], m)
     
     if options["gaussreorth"]: Q = np.zeros((m, max_n + 1))
         
@@ -124,7 +124,7 @@ def gauss_exp(A: Union[csc_matrix, np.ndarray], u: np.ndarray, theta: Optional[f
     # Lanczos loop
     i = 0 
     t0 = perf_counter()
-    while (dif > options["gausstolq"] * abs(g)) and (i < max_n):
+    while (dif > options["gauss_tol"] * abs(g)) and (i < max_n):
         
         # compute the product between the adjacency matrix and the vector
         
@@ -245,15 +245,16 @@ def gauss_res(A: Union[csc_matrix, np.ndarray], u: np.ndarray, rho: float, alpha
     
     :param A: csc_matrix or ndarray
     :param u: column vector
-    :param alpha: estimate of the largest eigenvalue of A (if not given is computed)
+    :param rho: estimate of the largest eigenvalue of A (if not given is computed)
+    :param alpha: alpha for resolvent
     :param opts: options dictionary
     :return: (fval, info) - quadrature value and number of iterations
     """
     # default options
     default_opts = {
-        "gausstolq": 1e-3,
+        "gauss_tol": 1e-3,
         "gausstau": 1e-10,
-        "gaussmaxn": 100,
+        "gauss_max_iterations": 100,
         "gaussreorth": 0,    # 0: no, 1: MGS, 2: CGS, 3: Double CGS
         "gaussmgs": True     # True for using MGS in the main step
     }
@@ -281,7 +282,7 @@ def gauss_res(A: Union[csc_matrix, np.ndarray], u: np.ndarray, rho: float, alpha
     sqrt_eps = np.sqrt(np.finfo(float).eps)
     
     # max iterations number, (the max number of iterations can't be larger than the number of rows of the matrix A)
-    max_n = min(options["gaussmaxn"], m)
+    max_n = min(options["gauss_max_iterations"], m)
     
     if options["gaussreorth"]: Q = np.zeros((m, max_n + 1))
         
@@ -301,7 +302,7 @@ def gauss_res(A: Union[csc_matrix, np.ndarray], u: np.ndarray, rho: float, alpha
     
     # Lanczos loop
     i = 0 
-    while (dif > options["gausstolq"] * abs(g)) and (i < max_n):
+    while (dif > options["gauss_tol"] * abs(g)) and (i < max_n):
         
         # compute the product between the adjacency matrix and the 
         v = mvprod(q)
@@ -414,9 +415,9 @@ def sgcengauss(A: csc_matrix,
     if opts is None: 
         opts = {}
 
-    gausstolq = opts.get("gausstolq", 1e-3)
-    gaussmaxn = opts.get("gaussmaxn", 200)
-    gaussmu = opts.get("gaussmu", eigsh(A, k=1, which='LA', return_eigenvectors=False)[0])
+    gauss_tol = opts.get("gauss_tol", 1e-3)
+    gauss_max_iterations = opts.get("gauss_max_iterations", 200)
+    gauss_largest_eigenvalue = opts.get("gauss_largest_eigenvalue", eigsh(A, k=1, which='LA', return_eigenvectors=False)[0])
     alpha = opts.get("alpha", 0.0)
 
     n = A.shape[0]
@@ -427,7 +428,7 @@ def sgcengauss(A: csc_matrix,
 
     info = 0
 
-    theta = gaussmu
+    theta = gauss_largest_eigenvalue
     if fun_name == 'res' and not (0 < alpha < 1 / theta):
         raise ValueError(f"alpha must be in (0, {1/theta:.6f}), got {alpha}")
 
@@ -436,8 +437,8 @@ def sgcengauss(A: csc_matrix,
         t0 = perf_counter()
         allsg[i], iters[i] = gauss_exp(A, ei, theta, opts) if fun_name == "exp" else gauss_res(A, ei, theta, alpha, opts)
         ei[i] = 0
-        info += 1 if iters[i] >= gaussmaxn else 0
-        logger.info(f"matrix-vector products, maxn, node, elapsed time: {iters[i]}, {gaussmaxn}, {i}, {perf_counter() - t0:.4f}")
+        info += 1 if iters[i] >= gauss_max_iterations else 0
+        logger.info(f"matrix-vector products, maxn, node, elapsed time: {iters[i]}, {gauss_max_iterations}, {i}, {perf_counter() - t0:.4f}")
         
     
     indx = np.argsort(allsg)[::-1]
@@ -482,10 +483,10 @@ def commgauss(A: csc_matrix,
     if opts is None: 
         opts = {}
 
-    gausstolq = opts.get("gausstolq", 1e-3)
-    gaussmaxn = opts.get("gaussmaxn", 200)
+    gauss_tol = opts.get("gauss_tol", 1e-3)
+    gauss_max_iterations = opts.get("gauss_max_iterations", 200)
     # Compute largest eigenvalue of A_sub instead of A
-    gaussmu = opts.get("gaussmu", eigsh(A_sub, k=1, which='LA', return_eigenvectors=False)[0])
+    gauss_largest_eigenvalue = opts.get("gauss_largest_eigenvalue", eigsh(A_sub, k=1, which='LA', return_eigenvectors=False)[0])
     alpha = opts.get("alpha", 0.0)
     logger.info(alpha)
 
@@ -495,7 +496,7 @@ def commgauss(A: csc_matrix,
 
     info = 0
 
-    theta = gaussmu
+    theta = gauss_largest_eigenvalue
     logger.info(theta)
     if fun_name == 'res' and not (0 < alpha < 1 / theta):
         raise ValueError(f"alpha must be in (0, {1/theta:.6f}), got {alpha}")
@@ -514,8 +515,8 @@ def commgauss(A: csc_matrix,
             iters_local[j] += iters2
             allcomm_local[j] = 0.5 * (allcomm1 - allcomm2)
             y_local[j] = 0
-        info += 1 if iters_local[j] >= gaussmaxn else 0
-        logger.info(f"matrix-vector products, maxn, node, elapsed time: {iters_local[j]}, {gaussmaxn}, {original_indices[j]}, {perf_counter() - t0:.4f}")
+        info += 1 if iters_local[j] >= gauss_max_iterations else 0
+        logger.info(f"matrix-vector products, maxn, node, elapsed time: {iters_local[j]}, {gauss_max_iterations}, {original_indices[j]}, {perf_counter() - t0:.4f}")
         
     
     indx_local = np.argsort(allcomm_local)[::-1]
@@ -544,9 +545,9 @@ def stconvgauss(A: csc_matrix,
     if opts is None: 
         opts = {}
 
-    gausstolq = opts.get("gausstolq", 1e-3)
-    gaussmaxn = opts.get("gaussmaxn", 200)
-    gaussmu = opts.get("gaussmu", eigsh(A, k=1, which='LA', return_eigenvectors=False)[0])
+    gauss_tol = opts.get("gauss_tol", 1e-3)
+    gauss_max_iterations = opts.get("gauss_max_iterations", 200)
+    gauss_largest_eigenvalue = opts.get("gauss_largest_eigenvalue", eigsh(A, k=1, which='LA', return_eigenvectors=False)[0])
     alpha = opts.get("alpha", 0.0)
 
     n = A.shape[0]
@@ -564,7 +565,7 @@ def stconvgauss(A: csc_matrix,
 
     info = 0
 
-    theta = gaussmu
+    theta = gauss_largest_eigenvalue
     if fun_name == 'res' and not (0 < alpha < 1 / theta):
         raise ValueError(f"alpha must be in (0, {1/theta:.6f}), got {alpha}")
 
@@ -584,9 +585,9 @@ def stconvgauss(A: csc_matrix,
         allstconv[i] = (np3 * allstconv1 - nm1 * allstconv2) / 4
         iters[i] += inf
 
-        info += 1 if iters[i] >= gaussmaxn else 0
+        info += 1 if iters[i] >= gauss_max_iterations else 0
         y[i] = 1  
-        logger.info(f"matrix-vector products, maxn, node, elapsed time: {iters[i]}, {gaussmaxn}, {i}, {perf_counter() - t0:.4f}")
+        logger.info(f"matrix-vector products, maxn, node, elapsed time: {iters[i]}, {gauss_max_iterations}, {i}, {perf_counter() - t0:.4f}")
         
     
     indx = np.argsort(allstconv)[::-1]

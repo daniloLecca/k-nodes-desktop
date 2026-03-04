@@ -4,6 +4,8 @@ from scipy.sparse.linalg import eigsh
 from collections import defaultdict
 from pydantic import BaseModel, model_validator
 from typing import Union, Literal
+import numpy as np
+
 
 class ComplexNetwork():
     adj: csc_matrix
@@ -114,4 +116,17 @@ class GaussSubgraphCentrality(BaseModel):
     tol: float | None = None
 
 class GaussCommunicability(GaussSubgraphCentrality):
+    i: int
+
+class HybridSubgraphCentrality(BaseModel):
+    shift: bool | None = None
+    fun_name: str | None = None
+    nnodes: int | None = None
+    low_rank_nnodes: int | None = None
+    alpha: float | None = None
+    max_iter: int | None = None
+    batch_size: int | None = None
+    tol: float | None = None
+
+class HybridCommunicability(HybridSubgraphCentrality):
     i: int

@@ -12,9 +12,11 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import Response
 from utils import get_clusters, ClusterRequest, ExpRequest, ResRequest, RandomComplexNetworkRequest
 from utils import LowRankSubgraphCentrality, LowRankCommunicability, GaussSubgraphCentrality, GaussCommunicability
+from utils import HybridSubgraphCentrality, HybridCommunicability
 from gauss import gauss_exp, gauss_res, sgcengauss, commgauss, stconvgauss
 from lowrank import sgcenlr, commlr, stconvlr
 from hybrid import sgcenhyb, commhyb, stconvhyb
+from primme import PrimmeError
 from secrets import token_urlsafe
 
 # middleware to limit body size (of the HTTP request)
@@ -112,8 +114,6 @@ async def overview(file: UploadFile = File(...)):
             adj = adj.tocsc()
             number_of_self_loops = np.sum(adj.diagonal())
             adj.setdiag(0) # all the elements in the diagonal will be equal to 0
-            # TODO: check if there were self loops (compare the original diagonal with a 
-            # diagonal of zeros)
             adj.eliminate_zeros() # delete the zero entries
             network = adj
         else:
@@ -137,9 +137,10 @@ async def overview(file: UploadFile = File(...)):
             "nodes": int(list(adj.shape)[0]),
             "edges": int(adj.nnz), 
             "largest eigenvalue": leig,
+            "max value for alpha": float(1 / leig),
             "self loops": int(number_of_self_loops),
             "clusters": size_of_clusters,
-            "numberOfClusters": len(size_of_clusters.keys()), 
+            "numberOfClusters": len(size_of_clusters.keys())
         }
         
         # generic error
@@ -236,6 +237,7 @@ def get_random_complex_network(request: RandomComplexNetworkRequest):
         "nodes": network.shape[0], 
         "edges": network.nnz, 
         "largest_eigenvalue": leig, 
+        "max value for alpha": 1 / leig,
         "clusters": clusters
     }
 
@@ -243,19 +245,20 @@ def get_random_complex_network(request: RandomComplexNetworkRequest):
 async def get_sgclr(request: LowRankSubgraphCentrality):
     logger = logging.getLogger(__name__)
     
+    # Low-rank options for Gauss quadrature
     options = {
-        "sgcmaxn": request.max_iter or 300, 
-        "sgcmaxva": 200,  # max eigenvector database
-        "sgctoll": request.tol or 1e-3,  # tolerance for approximation loop
-        "sgctau": 1e-3, # tolerance for weak convergence
-        "sgcminkappa": 5,  # min size of additional nodes in the case of weak convergence
-        "sgcmaxkappa": 100,  # max size of additional nodes in the case of weak convergence
-        "sgcshift": request.shift if request.shift is not None else True, 
+        "lr_max_iterations": request.max_iter or 300, 
+        "lr_max_eigenvectors": 200,
+        "lr_approximation_tol": request.tol or 1e-3,
+        "lr_weak_convergence_tol": 1e-3,
+        "lr_min_additional_nodes": 5,
+        "lr_max_additional_nodes": 100,
+        "lr_shift": request.shift if request.shift is not None else True, 
         "alpha": request.alpha or 0.0, 
-        "k": request.batch_size or 20,  # batch size for primme
-        "tol": 1e-5,  # tolerance for primme
-        "primme_maxiter": 5000,  # max number of iterations for primme
-        "return_S": True  
+        "lr_primme_batch_size": request.batch_size or 20,
+        "lr_primme_tol": 1e-5,
+        "lr_primme_max_iterations": 5000,
+        "lr_return_S": True  
     }
 
     if network is None:
@@ -281,19 +284,20 @@ async def get_sgclr(request: LowRankSubgraphCentrality):
 async def get_commlr(request: LowRankCommunicability):
     logger = logging.getLogger(__name__)
     
+    # Low-rank options for communicability
     options = {
-        "sgcmaxn": request.max_iter or 300, 
-        "sgcmaxva": 200,  # max eigenvector database
-        "sgctoll": request.tol or 0,  # tolerance for approximation loop
-        "sgctau": 1e-1, # tolerance for weak convergence
-        "sgcminkappa": 1,  # min size of additional nodes in the case of weak convergence
-        "sgcmaxkappa": 100,  # max size of additional nodes in the case of weak convergence
-        "sgcshift": request.shift if request.shift is not None else True, 
+        "lr_max_iterations": request.max_iter or 300, 
+        "lr_max_eigenvectors": 200,
+        "lr_approximation_tol": request.tol or 0,
+        "lr_weak_convergence_tol": 1e-1,
+        "lr_min_additional_nodes": 1,
+        "lr_max_additional_nodes": 100,
+        "lr_shift": request.shift if request.shift is not None else True, 
         "alpha": request.alpha or 0.0, 
-        "k": request.batch_size or 20,  # batch size for primme
-        "tol": 1e-3,  # tolerance for primme
-        "primme_maxiter": 5000,  # max number of iterations for primme
-        "return_S": True  
+        "lr_primme_batch_size": request.batch_size or 20,
+        "lr_primme_tol": 1e-3,
+        "lr_primme_max_iterations": 5000,
+        "lr_return_S": True  
     }
 
     if network is None:
@@ -318,19 +322,20 @@ async def get_commlr(request: LowRankCommunicability):
 async def get_stconvlr(request: LowRankSubgraphCentrality):
     logger = logging.getLogger(__name__)
     
+    # Low-rank options for starting convenience
     options = {
-        "sgcmaxn": request.max_iter or 300, 
-        "sgcmaxva": 200,  # max eigenvector database
-        "sgctoll": request.tol or 0,  # tolerance for approximation loop
-        "sgctau": 1e-3, # tolerance for weak convergence
-        "sgcminkappa": 1,  # min size of additional nodes in the case of weak convergence
-        "sgcmaxkappa": 100,  # max size of additional nodes in the case of weak convergence
-        "sgcshift": request.shift if request.shift is not None else True, 
+        "lr_max_iterations": request.max_iter or 300, 
+        "lr_max_eigenvectors": 200,
+        "lr_approximation_tol": request.tol or 0,
+        "lr_weak_convergence_tol": 1e-3,
+        "lr_min_additional_nodes": 1,
+        "lr_max_additional_nodes": 100,
+        "lr_shift": request.shift if request.shift is not None else True, 
         "alpha": request.alpha or 0.0, 
-        "k": request.batch_size or 20,  # batch size for primme
-        "tol": 1e-3,  # tolerance for primme
-        "primme_maxiter": 5000,  # max number of iterations for primme
-        "return_S": True  
+        "lr_primme_batch_size": request.batch_size or 20,
+        "lr_primme_tol": 1e-3,
+        "lr_primme_max_iterations": 5000,
+        "lr_return_S": True  
     }
 
     if network is None:
@@ -360,10 +365,11 @@ async def get_sgcgauss(request: GaussSubgraphCentrality):
             content={"error": "network not initialized yet. First send a .mat file to /api/."}
         )
 
+    # Gauss quadrature options
     options = {
-        "gausstolq": request.tol or 1e-3, 
-        "gaussmaxn": request.max_iter or 200,
-        "gaussmu": leig,
+        "gauss_tol": request.tol or 1e-3, 
+        "gauss_max_iterations": request.max_iter or 200,
+        "gauss_largest_eigenvalue": leig,
         "alpha": request.alpha or 0.0
     }
 
@@ -385,13 +391,20 @@ async def get_commgauss(request: GaussCommunicability):
             content={"error": "network not initialized yet. First send a .mat file to /api/."}
         )
 
+    # Gauss quadrature options for communicability
     options = {
-        "gausstolq": request.tol or 1e-3, 
-        "gaussmaxn": request.max_iter or 200,
+        "gauss_tol": request.tol or 1e-3, 
+        "gauss_max_iterations": request.max_iter or 200,
         "alpha": request.alpha or 0.0
     }
 
-    vip_nodes, vip_comm, info, iters, allcomm = commgauss(network, request.i, request.fun_name or "exp", request.nnodes or 1, options)
+    try: 
+        vip_nodes, vip_comm, info, iters, allcomm = commgauss(network, request.i, request.fun_name or "exp", request.nnodes or 1, options)
+    except ValueError as e:
+        return JSONResponse(
+            status_code=400, 
+            content={"error": str(e)}
+        )
 
     return {
         "vip_nodes": vip_nodes.tolist(), 
@@ -410,10 +423,11 @@ async def get_stconvgauss(request: GaussSubgraphCentrality):
             content={"error": "network not initialized yet. First send a .mat file to /api/."}
         )
 
+    # Gauss quadrature options for starting convenience
     options = {
-        "gausstolq": request.tol or 1e-3, 
-        "gaussmaxn": request.max_iter or 200,
-        "gaussmu": leig,
+        "gauss_tol": request.tol or 1e-3, 
+        "gauss_max_iterations": request.max_iter or 200,
+        "gauss_largest_eigenvalue": leig,
         "alpha": request.alpha or 0.0
     }
 
@@ -429,7 +443,7 @@ async def get_stconvgauss(request: GaussSubgraphCentrality):
     }
 
 @app.post("/api/sgchyb")
-async def get_sgchyb(request: GaussSubgraphCentrality):
+async def get_sgchyb(request: HybridSubgraphCentrality):
 
     if network is None:
         return JSONResponse(
@@ -437,27 +451,43 @@ async def get_sgchyb(request: GaussSubgraphCentrality):
             content={"error": "network not initialized yet. First send a .mat file to /api/."}
         )
 
-    options = {
-        "sgcmaxn": request.max_iter or 300, 
-        "sgcmaxva": 200,
-        "sgctoll": 1e-3,
-        "sgctau": 1e-1,
-        "sgcminkappa": 5,
-        "sgcmaxkappa": 100,
-        "sgcshift": True,
-        "alpha": request.alpha or 0.0,
-        "k": 20,
-        "tol": 1e-5,
-        "primme_maxiter": 5000,
-        "return_S": True,
-        "gausstolq": request.tol or 1e-3,
-        "gaussmaxn": 200,
-        "gaussmu": leig
+    # Hybrid options: low-rank approximation + Gauss quadrature refinement
+    # Low-rank options
+    lr_options = {
+        "lr_max_iterations": request.max_iter or 300, 
+        "lr_max_eigenvectors": 200,
+        "lr_approximation_tol": 1e-3,
+        "lr_weak_convergence_tol": 1e-1,
+        "lr_nnodes": request.low_rank_nnodes or int(10 * request.nnodes), # estimate of the number of nodes for low rank
+        "lr_min_additional_nodes": 5,
+        "lr_max_additional_nodes": 100,
+        "lr_shift": request.shift if request.shift is not None else True,
+        "lr_primme_batch_size": request.batch_size or 20,
+        "lr_primme_tol": 1e-5,
+        "lr_primme_max_iterations": 5000,
+        "lr_return_S": True,
     }
+    
+    # Gauss options
+    gauss_options = {
+        "gauss_tol": request.tol or 1e-3,
+        "gauss_max_iterations": 200,
+        "gauss_largest_eigenvalue": leig,
+    }
+    
+    # Combine options for hybrid method
+    options = {**lr_options, **gauss_options, "alpha": request.alpha or 0.0}
 
     logger = logging.getLogger(__name__)
     logger.info(f"Starting sgchyb computation with {network.shape[0]} nodes, fun={request.fun_name}, nnodes={request.nnodes}")
-    vip_nodes, vip_sgc, info, iters, allsgc, vip_lr, vipsgc_lr, realN_lr, S_history_lr, convergence = sgcenhyb(network, request.fun_name or "exp", request.nnodes or 1, options)
+    try: 
+        vip_nodes, vip_sgc, info, iters, allsgc, vip_lr, vipsgc_lr, realN_lr, S_history_lr, convergence = sgcenhyb(network, request.fun_name or "exp", request.nnodes or 1, options)
+    except PrimmeError: 
+        return JSONResponse(
+            status_code=400, 
+            content={"error": "maximum number of iterations or matvecs reached, try decreasing batch size."}
+    )
+
     logger.info(f"vipnodes: {vip_nodes}")
     return {
         "vip_nodes": vip_nodes.tolist(),
@@ -473,7 +503,7 @@ async def get_sgchyb(request: GaussSubgraphCentrality):
     }
 
 @app.post("/api/commhyb")
-async def get_commhyb(request: GaussCommunicability):
+async def get_commhyb(request: HybridCommunicability):
 
     if network is None:
         return JSONResponse(
@@ -481,26 +511,41 @@ async def get_commhyb(request: GaussCommunicability):
             content={"error": "network not initialized yet. First send a .mat file to /api/."}
         )
 
-    options = {
-        "sgcmaxn": request.max_iter or 300,
-        "sgcmaxva": 200,
-        "sgctoll": 1e-3,
-        "sgctau": 1e-1,
-        "sgcminkappa": 5,
-        "sgcmaxkappa": 100,
-        "sgcshift": True,
-        "alpha": request.alpha or 0.0,
-        "k": 20,
-        "tol": 1e-5,
-        "primme_maxiter": 5000,
-        "return_S": True,
-        "gausstolq": request.tol or 1e-3,
-        "gaussmaxn": 200
+    # Hybrid options: low-rank approximation + Gauss quadrature refinement
+    # Low-rank options
+    lr_options = {
+        "lr_max_iterations": request.max_iter or 300,
+        "lr_max_eigenvectors": 200,
+        "lr_approximation_tol": 1e-3,
+        "lr_weak_convergence_tol": 1e-1,
+        "lr_nnodes": request.low_rank_nnodes or int(10 * request.nnodes), # estimate of the number of nodes for low rank
+        "lr_min_additional_nodes": 5,
+        "lr_max_additional_nodes": 100,
+        "lr_shift": request.shift if request.shift is not None else True,
+        "lr_primme_batch_size": request.batch_size or 20,
+        "lr_primme_tol": 1e-5,
+        "lr_primme_max_iterations": 5000,
+        "lr_return_S": True,
     }
+    
+    # Gauss options
+    gauss_options = {
+        "gauss_tol": request.tol or 1e-3,
+        "gauss_max_iterations": 200,
+    }
+    
+    # Combine options for hybrid method
+    options = {**lr_options, **gauss_options, "alpha": request.alpha or 0.0}
     
     logger = logging.getLogger(__name__)
     logger.info(f"Starting commhyb computation with {network.shape[0]} nodes, fun={request.fun_name}, nnodes={request.nnodes}")
-    vip_nodes, vip_comm, info, iters, allcomm, vip_lr_local, vipcomm_lr_local, realN_lr, S_history_lr, convergence = commhyb(network, request.i, request.fun_name or "exp", request.nnodes or 1, options)
+    try: 
+        vip_nodes, vip_comm, info, iters, allcomm, vip_lr_local, vipcomm_lr_local, realN_lr, S_history_lr, convergence = commhyb(network, request.i, request.fun_name or "exp", request.nnodes or 1, options)
+    except PrimmeError: 
+        return JSONResponse(
+            status_code=400, 
+            content={"error": "maximum number of iterations or matvecs reached, try decreasing batch size."}
+        )
 
     return {
         "vip_nodes": vip_nodes.tolist(),
@@ -516,7 +561,7 @@ async def get_commhyb(request: GaussCommunicability):
     }
 
 @app.post("/api/stconvhyb")
-async def get_stconvhyb(request: GaussSubgraphCentrality):
+async def get_stconvhyb(request: HybridSubgraphCentrality):
 
     if network is None:
         return JSONResponse(
@@ -524,27 +569,43 @@ async def get_stconvhyb(request: GaussSubgraphCentrality):
             content={"error": "network not initialized yet. First send a .mat file to /api/."}
         )
 
-    options = {
-        "sgcmaxn": request.max_iter or 300,
-        "sgcmaxva": 200,
-        "sgctoll": 1e-3,
-        "sgctau": 1e-1,
-        "sgcminkappa": 5,
-        "sgcmaxkappa": 100,
-        "sgcshift": True,
-        "alpha": request.alpha or 0.0,
-        "k": 20,
-        "tol": 1e-5,
-        "primme_maxiter": 5000,
-        "return_S": True,
-        "gausstolq": request.tol or 1e-3,
-        "gaussmaxn": 200,
-        "gaussmu": leig
+    # Hybrid options: low-rank approximation + Gauss quadrature refinement
+    # Low-rank options
+    lr_options = {
+        "lr_max_iterations": request.max_iter or 300,
+        "lr_max_eigenvectors": 200,
+        "lr_approximation_tol": 1e-3,
+        "lr_weak_convergence_tol": 1e-1,
+        "lr_nnodes": request.low_rank_nnodes or int(10 * request.nnodes), # estimate of the number of nodes for low rank
+        "lr_min_additional_nodes": 5,
+        "lr_max_additional_nodes": 100,
+        "lr_shift": request.shift if request.shift is not None else True,
+        "lr_primme_batch_size": request.batch_size or 20,
+        "lr_primme_tol": 1e-5,
+        "lr_primme_max_iterations": 5000,
+        "lr_return_S": True,
     }
+    
+    # Gauss options
+    gauss_options = {
+        "gauss_tol": request.tol or 1e-3,
+        "gauss_max_iterations": 200,
+        "gauss_largest_eigenvalue": leig,
+    }
+    
+    # Combine options for hybrid method
+    options = {**lr_options, **gauss_options, "alpha": request.alpha or 0.0}
 
     logger = logging.getLogger(__name__)
     logger.info(f"Starting stconvhyb computation with {network.shape[0]} nodes, fun={request.fun_name}, nnodes={request.nnodes}")
-    vip_nodes, vip_stconv, info, iters, allstconv, vip_lr, vipstconv_lr, realN_lr, S_history_lr, convergence = stconvhyb(network, request.fun_name or "exp", request.nnodes or 1, options)
+
+    try: 
+        vip_nodes, vip_stconv, info, iters, allstconv, vip_lr, vipstconv_lr, realN_lr, S_history_lr, convergence = stconvhyb(network, request.fun_name or "exp", request.nnodes or 1, options)
+    except PrimmeError: 
+        return JSONResponse(
+            status_code=400, 
+            content={"error": "maximum number of iterations or matvecs reached, try decreasing batch size."}
+    )
 
     return {
         "vip_nodes": vip_nodes.tolist(),

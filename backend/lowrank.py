@@ -26,7 +26,7 @@ def sgcenlr(A: csc_matrix,
     nnodes : int
         number of VIP nodes
     opts : dict, optional
-        options both for algorithm and for PRIMME (irbleigs in MATLAB) (sgcmaxn, toll, ecc.).
+        options both for algorithm and for PRIMME (irbleigs in MATLAB) (lr_max_iterations, toll, ecc.).
         
     Returns:
     -------
@@ -48,29 +48,29 @@ def sgcenlr(A: csc_matrix,
         opts = {}
         
     # unpack default options
-    sgcmaxn = opts.get('sgcmaxn', 300) # max number of iterations
-    sgcmaxva = opts.get('sgcmaxva', 200) # max size of eigenvectors database
-    sgctoll = opts.get('sgctoll', 0.0) # tolerance for exit condition (lower bound stagnation)
-    sgctau = opts.get('sgctau', 1e-1) # tolerance for weak convergence
-    sgcminkappa = opts.get('sgcminkappa', 5) # min number of additional VIP nodes (weak convergence)
-    sgcmaxkappa = opts.get('sgcmaxkappa', 100) # max number of additional VIP nodes (weak convergence)
-    sgcshift = opts.get('sgcshift', True) # spectrum shift, default: True
+    lr_max_iterations = opts.get('lr_max_iterations', 300) # max number of iterations
+    lr_max_eigenvectors = opts.get('lr_max_eigenvectors', 200) # max size of eigenvectors database
+    lr_approximation_tol = opts.get('lr_approximation_tol', 0.0) # tolerance for exit condition (lower bound stagnation)
+    lr_weak_convergence_tol = opts.get('lr_weak_convergence_tol', 1e-1) # tolerance for weak convergence
+    lr_min_additional_nodes = opts.get('lr_min_additional_nodes', 5) # min number of additional VIP nodes (weak convergence)
+    lr_max_additional_nodes = opts.get('lr_max_additional_nodes', 100) # max number of additional VIP nodes (weak convergence)
+    lr_shift = opts.get('lr_shift', True) # spectrum shift, default: True
     alpha = opts.get('alpha', 0.0) # alpha for resolvent
     
     # PRIMME options
-    k = opts.get('k', 20) # batch size
-    tol = opts.get('tol', 1e-3) # tolerance for PRIMME
-    primme_maxiter = opts.get('primme_maxiter', 1000) # max number of iterations for PRIMME
-    return_S = opts.get('return_S', True) # return the history of candidate nodes, default: True
+    k = opts.get('lr_primme_batch_size', 20) # batch size
+    tol = opts.get('lr_primme_tol', 1e-3) # tolerance for PRIMME
+    lr_primme_max_iterations = opts.get('lr_primme_max_iterations', 1000) # max number of iterations for PRIMME
+    lr_return_S = opts.get('lr_return_S', True) # return the history of candidate nodes, default: True
 
     restype = 1  # restart type -> 1 = new eigenbatch, 2 = eigenvectors close to the smallest eigenvalue
     n = A.shape[0] # number of nodes of the network
     
-    logger.info(f"Starting sgcenlr: n={n}, k={k}, nnodes={nnodes}, sgcmaxn={sgcmaxn}")
+    logger.info(f"Starting sgcenlr: n={n}, k={k}, nnodes={nnodes}, lr_max_iterations={lr_max_iterations}")
     
     # compute the first batch (default batch_size = k = 20)
     logger.info(f"Computing first eigenbatch with k={min(k, n)}...")
-    evals, evecs = primme.eigsh(A, k=min(k, n), which='LA', tol=tol, maxiter=primme_maxiter)
+    evals, evecs = primme.eigsh(A, k=min(k, n), which='LA', tol=tol, maxiter=lr_primme_max_iterations)
     logger.info(f"First eigenbatch computed successfully")
     
     # descending ordering
@@ -82,7 +82,7 @@ def sgcenlr(A: csc_matrix,
     
     # definition of 'exp' or 'res', therefore f(A) = exp(A - mu) or (I - mu*x)^-1
     if fun_name == 'exp':
-        mu = musave if sgcshift else 0.0
+        mu = musave if lr_shift else 0.0
         def fun(x, mu_val): return np.exp(x - mu_val)
     elif fun_name == 'res':
         mu = alpha
@@ -101,7 +101,7 @@ def sgcenlr(A: csc_matrix,
     flag = True # exit condition (checks if the VIP nodes are determined or the lower bounds stagnate)
     VA = None # contains all the computed eigenvectors
     
-    while flag and (realN < min(sgcmaxn, n)):
+    while flag and (realN < min(lr_max_iterations, n)):
         # if all the eigenpairs of the current batch are used then a restart is needed
         if N == len(lam):
             
@@ -119,7 +119,7 @@ def sgcenlr(A: csc_matrix,
                 k_new = min(k, n - VA.shape[1]) # minimum between standard dimension of eigenbatch (k in options)
                 # and remaining space in memory (eigenvectors database)
                 try:
-                    evals, evecs = primme.eigsh(A, k=k_new, which='LA', ortho=VA, tol=tol, maxiter=primme_maxiter) # new batch
+                    evals, evecs = primme.eigsh(A, k=k_new, which='LA', ortho=VA, tol=tol, maxiter=lr_primme_max_iterations) # new batch
                     
                 except ValueError as e: 
                     warnings.warn(f"tolerance = {tol}, try reducing tolerance for eigenvalue computation")
@@ -136,7 +136,7 @@ def sgcenlr(A: csc_matrix,
                 N = 0 # reset of the count of eigenvectors used in the current eigenbatch
                 
                 # if VA is too large -> switch to the second type of restart for future restarts
-                if VA.shape[1] >= sgcmaxva:
+                if VA.shape[1] >= lr_max_eigenvectors:
                     restype = 2
 
             elif restype == 2:
@@ -146,7 +146,7 @@ def sgcenlr(A: csc_matrix,
                 sigma = lam[-1] # sigma is the smallest eigenvalue computed until now
                 
                 try:
-                    evals, evecs = primme.eigsh(A, k=k, targetShifts=[sigma], which='LM', tol=tol, maxiter=primme_maxiter)
+                    evals, evecs = primme.eigsh(A, k=k, targetShifts=[sigma], which='LM', tol=tol, maxiter=lr_primme_max_iterations)
                 except primme.PrimmeError as e:
                     warnings.warn(f"PRIMME couldn't converge to restart (case 2): {e}")
                     break
@@ -184,11 +184,11 @@ def sgcenlr(A: csc_matrix,
         lis = np.where(U >= Lmax)[0]
         logger.info(Ls)
         
-        if return_S:
+        if lr_return_S:
             S_history.append(lis)
             
         # exit condition check 
-        flag = (len(lis) > nnodes) and ((f_lam / n) > (sgctoll * Lmax))
+        flag = (len(lis) > nnodes) and ((f_lam / n) > (lr_approximation_tol * Lmax))
         
         N += 1
         realN += 1
@@ -204,9 +204,9 @@ def sgcenlr(A: csc_matrix,
         if len(lis) > nnodes: 
             # weak convergence
             # add additional nodes which have a lower bound very close to Lmax
-            ivec = np.where((Lmax - Ls[nnodes:]) < (sgctau * Lmax))[0]
-            incr = min(len(ivec), sgcmaxkappa)
-            incr = max(incr, sgcminkappa)
+            ivec = np.where((Lmax - Ls[nnodes:]) < (lr_weak_convergence_tol * Lmax))[0]
+            incr = min(len(ivec), lr_max_additional_nodes)
+            incr = max(incr, lr_min_additional_nodes)
             logger.info(f"Weak convergence, added {incr} additional nodes")
         else:
             # strong convergence
@@ -245,7 +245,7 @@ def commlr(A: csc_matrix,
     nnodes : int
         number of VIP nodes
     opts : dict, optional
-        options both for algorithm and for PRIMME (irbleigs in MATLAB) (sgcmaxn, toll, ecc.).
+        options both for algorithm and for PRIMME (irbleigs in MATLAB) (lr_max_iterations, toll, ecc.).
         
     Returns:
     -------
@@ -289,28 +289,28 @@ def commlr(A: csc_matrix,
         opts = {}
         
     # unpack default options
-    sgcmaxn = opts.get('sgcmaxn', 300) 
-    sgcmaxva = opts.get('sgcmaxva', 200) 
-    sgctoll = opts.get('sgctoll', 0.0) 
-    sgctau = opts.get('sgctau', 1e-1) 
-    sgcminkappa = opts.get('sgcminkappa', 1) 
-    sgcmaxkappa = opts.get('sgcmaxkappa', 100) 
-    sgcshift = opts.get('sgcshift', True) 
+    lr_max_iterations = opts.get('lr_max_iterations', 300) 
+    lr_max_eigenvectors = opts.get('lr_max_eigenvectors', 200) 
+    lr_approximation_tol = opts.get('lr_approximation_tol', 0.0) 
+    lr_weak_convergence_tol = opts.get('lr_weak_convergence_tol', 1e-1) 
+    lr_min_additional_nodes = opts.get('lr_min_additional_nodes', 1) 
+    lr_max_additional_nodes = opts.get('lr_max_additional_nodes', 100) 
+    lr_shift = opts.get('lr_shift', True) 
     alpha = opts.get('alpha', 0.0) 
     
     # PRIMME options
-    k = opts.get('k', 20) 
-    tol = opts.get('tol', 1e-3) 
-    primme_maxiter = opts.get('primme_maxiter', 1000) 
-    return_S = opts.get('return_S', True) 
+    k = opts.get('lr_primme_batch_size', 20) 
+    tol = opts.get('lr_primme_tol', 1e-3) 
+    lr_primme_max_iterations = opts.get('lr_primme_max_iterations', 1000) 
+    lr_return_S = opts.get('lr_return_S', True) 
 
     restype = 1 
     
-    logger.info(f"Starting sgcenlr: n_sub={n_sub}, k={k}, nnodes={nnodes}, sgcmaxn={sgcmaxn}")
+    logger.info(f"Starting sgcenlr: n_sub={n_sub}, k={k}, nnodes={nnodes}, lr_max_iterations={lr_max_iterations}")
     
     # compute the first batch using A_sub
     logger.info(f"Computing first eigenbatch with k={min(k, n_sub)}...")
-    evals, evecs = primme.eigsh(A_sub, k=min(k, n_sub), which='LA', tol=tol, maxiter=primme_maxiter)
+    evals, evecs = primme.eigsh(A_sub, k=min(k, n_sub), which='LA', tol=tol, maxiter=lr_primme_max_iterations)
     logger.info("First eigenbatch computed successfully")
     
     # descending ordering
@@ -321,7 +321,7 @@ def commlr(A: csc_matrix,
     musave = lam[0] 
     
     if fun_name == 'exp':
-        mu = musave if sgcshift else 0.0
+        mu = musave if lr_shift else 0.0
         def fun(x, mu_val): return np.exp(x - mu_val)
     elif fun_name == 'res':
         mu = alpha
@@ -344,7 +344,7 @@ def commlr(A: csc_matrix,
     VA = None 
     lis_local = np.array([])
     
-    while flag and (realN < min(sgcmaxn, n_sub)):
+    while flag and (realN < min(lr_max_iterations, n_sub)):
         if N == len(lam):
             if restype == 1:
                 if VA is None:
@@ -357,7 +357,7 @@ def commlr(A: csc_matrix,
                 
                 k_new = min(k, n_sub - VA.shape[1]) 
                 try:
-                    evals, evecs = primme.eigsh(A_sub, k=k_new, which='LA', ortho=VA, tol=tol, maxiter=primme_maxiter) 
+                    evals, evecs = primme.eigsh(A_sub, k=k_new, which='LA', ortho=VA, tol=tol, maxiter=lr_primme_max_iterations) 
                 except ValueError as e: 
                     warnings.warn(f"tolerance = {tol}, try reducing tolerance for eigenvalue computation")
                     break
@@ -371,13 +371,13 @@ def commlr(A: csc_matrix,
                 
                 N = 0 
                 
-                if VA.shape[1] >= sgcmaxva:
+                if VA.shape[1] >= lr_max_eigenvectors:
                     restype = 2
 
             elif restype == 2:
                 sigma = lam[-1] 
                 try:
-                    evals, evecs = primme.eigsh(A_sub, k=k, targetShifts=[sigma], which='LM', tol=tol, maxiter=primme_maxiter)
+                    evals, evecs = primme.eigsh(A_sub, k=k, targetShifts=[sigma], which='LM', tol=tol, maxiter=lr_primme_max_iterations)
                 except primme.PrimmeError as e:
                     warnings.warn(f"PRIMME couldn't converge to restart in case 2: {e}")
                     break
@@ -410,10 +410,10 @@ def commlr(A: csc_matrix,
         
         lis_local = np.where(U >= Fmax)[0]
         
-        if return_S:
+        if lr_return_S:
             S_history_local.append(lis_local)
             
-        flag = (len(lis_local) > nnodes) and ((np.abs(np.mean(contr))) > (sgctoll * Fmax))
+        flag = (len(lis_local) > nnodes) and ((np.abs(np.mean(contr))) > (lr_approximation_tol * Fmax))
         
         N += 1
         realN += 1
@@ -426,9 +426,9 @@ def commlr(A: csc_matrix,
         logger.info(f"selected {nvip} number of VIP nodes")
     else:
         if len(lis_local) > nnodes: 
-            ivec = np.where((Fmax - Fs[nnodes:]) < (sgctau * Fmax))[0]
-            incr = min(len(ivec), sgcmaxkappa)
-            incr = max(incr, sgcminkappa)
+            ivec = np.where((Fmax - Fs[nnodes:]) < (lr_weak_convergence_tol * Fmax))[0]
+            incr = min(len(ivec), lr_max_additional_nodes)
+            incr = max(incr, lr_min_additional_nodes)
             logger.info(f"Weak convergence, added {incr} additional nodes")
         else:
             logger.info("Strong convergence, no additional node is needed")
@@ -445,7 +445,7 @@ def commlr(A: csc_matrix,
 
     # mapping to original matrix
     vip_original = original_indices[vip_local]
-    S_history_original = [original_indices[lis] for lis in S_history_local] if return_S else []
+    S_history_original = [original_indices[lis] for lis in S_history_local] if lr_return_S else []
     # ------------------------------------------------------
 
     return vip_original, vipsgc, realN, S_history_original
@@ -468,7 +468,7 @@ def stconvlr(A: csc_matrix,
     nnodes : int
         number of VIP nodes
     opts : dict, optional
-        options both for algorithm and for PRIMME (irbleigs in MATLAB) (sgcmaxn, toll, ecc.).
+        options both for algorithm and for PRIMME (irbleigs in MATLAB) (lr_max_iterations, toll, ecc.).
         
     Returns:
     -------
@@ -492,29 +492,29 @@ def stconvlr(A: csc_matrix,
         opts = {}
         
     # unpack default options
-    sgcmaxn = opts.get('sgcmaxn', 300) # max number of iterations
-    sgcmaxva = opts.get('sgcmaxva', 200) # max size of eigenvectors database
-    sgctoll = opts.get('sgctoll', 0.0) # tolerance for exit condition (lower bound stagnation)
-    sgctau = opts.get('sgctau', 1e-1) # tolerance for weak convergence
-    sgcminkappa = opts.get('sgcminkappa', 1) # min number of additional VIP nodes (weak convergence)
-    sgcmaxkappa = opts.get('sgcmaxkappa', 100) # max number of additional VIP nodes (weak convergence)
-    sgcshift = opts.get('sgcshift', True) # spectrum shift, default: True
+    lr_max_iterations = opts.get('lr_max_iterations', 300) # max number of iterations
+    lr_max_eigenvectors = opts.get('lr_max_eigenvectors', 200) # max size of eigenvectors database
+    lr_approximation_tol = opts.get('lr_approximation_tol', 0.0) # tolerance for exit condition (lower bound stagnation)
+    lr_weak_convergence_tol = opts.get('lr_weak_convergence_tol', 1e-1) # tolerance for weak convergence
+    lr_min_additional_nodes = opts.get('lr_min_additional_nodes', 1) # min number of additional VIP nodes (weak convergence)
+    lr_max_additional_nodes = opts.get('lr_max_additional_nodes', 100) # max number of additional VIP nodes (weak convergence)
+    lr_shift = opts.get('lr_shift', True) # spectrum shift, default: True
     alpha = opts.get('alpha', 0.0) # alpha for resolvent
     
     # PRIMME options
-    k = opts.get('k', 20) # batch size
-    tol = opts.get('tol', 1e-3) # tolerance for PRIMME
-    primme_maxiter = opts.get('primme_maxiter', 1000) # max number of iterations for PRIMME
-    return_S = opts.get('return_S', True) # return the history of candidate nodes, default: True
+    k = opts.get('lr_primme_batch_size', 20) # batch size
+    tol = opts.get('lr_primme_tol', 1e-3) # tolerance for PRIMME
+    lr_primme_max_iterations = opts.get('lr_primme_max_iterations', 1000) # max number of iterations for PRIMME
+    lr_return_S = opts.get('lr_return_S', True) # return the history of candidate nodes, default: True
 
     restype = 1  # restart type -> 1 = new eigenbatch, 2 = eigenvectors close to the smallest eigenvalue
     n = A.shape[0] # number of nodes of the network
     
-    logger.info(f"Starting sgcenlr: n={n}, k={k}, nnodes={nnodes}, sgcmaxn={sgcmaxn}")
+    logger.info(f"Starting sgcenlr: n={n}, k={k}, nnodes={nnodes}, lr_max_iterations={lr_max_iterations}")
     
     # compute the first batch (default batch_size = k = 20)
     logger.info(f"Computing first eigenbatch with k={min(k, n)}...")
-    evals, evecs = primme.eigsh(A, k=min(k, n), which='LA', tol=tol, maxiter=primme_maxiter)
+    evals, evecs = primme.eigsh(A, k=min(k, n), which='LA', tol=tol, maxiter=lr_primme_max_iterations)
     logger.info(f"First eigenbatch computed successfully")
     
     # descending ordering
@@ -526,7 +526,7 @@ def stconvlr(A: csc_matrix,
     
     # definition of 'exp' or 'res', therefore f(A) = exp(A - mu) or (I - mu*x)^-1
     if fun_name == 'exp':
-        mu = musave if sgcshift else 0.0
+        mu = musave if lr_shift else 0.0
         def fun(x, mu_val): return np.exp(x - mu_val)
     elif fun_name == 'res':
         mu = alpha
@@ -546,7 +546,7 @@ def stconvlr(A: csc_matrix,
     flag = True # exit condition (checks if the VIP nodes are determined or the lower bounds stagnate)
     VA = None # contains all the computed eigenvectors
     
-    while flag and (realN < min(sgcmaxn, n)):
+    while flag and (realN < min(lr_max_iterations, n)):
         # if all the eigenpairs of the current batch are used then a restart is needed
         if N == len(lam):
             
@@ -564,7 +564,7 @@ def stconvlr(A: csc_matrix,
                 k_new = min(k, n - VA.shape[1]) # minimum between standard dimension of eigenbatch (k in options)
                 # and remaining space in memory (eigenvectors database)
                 try:
-                    evals, evecs = primme.eigsh(A, k=k_new, which='LA', ortho=VA, tol=tol, maxiter=primme_maxiter) # new batch
+                    evals, evecs = primme.eigsh(A, k=k_new, which='LA', ortho=VA, tol=tol, maxiter=lr_primme_max_iterations) # new batch
                     
                 except ValueError as e: 
                     warnings.warn(f"tolerance = {tol}, try reducing tolerance for eigenvalue computation")
@@ -581,7 +581,7 @@ def stconvlr(A: csc_matrix,
                 N = 0 # reset of the count of eigenvectors used in the current eigenbatch
                 
                 # if VA is too large -> switch to the second type of restart for future restarts
-                if VA.shape[1] >= sgcmaxva:
+                if VA.shape[1] >= lr_max_eigenvectors:
                     restype = 2
 
             elif restype == 2:
@@ -591,7 +591,7 @@ def stconvlr(A: csc_matrix,
                 sigma = lam[-1] # sigma is the smallest eigenvalue computed until now
                 
                 try:
-                    evals, evecs = primme.eigsh(A, k=k, targetShifts=[sigma], which='LM', tol=tol, maxiter=primme_maxiter)
+                    evals, evecs = primme.eigsh(A, k=k, targetShifts=[sigma], which='LM', tol=tol, maxiter=lr_primme_max_iterations)
                 except primme.PrimmeError as e:
                     warnings.warn(f"PRIMME couldn't converge to restart (case 2): {e}")
                     break
@@ -633,11 +633,11 @@ def stconvlr(A: csc_matrix,
         # determine the nodes in which the upper bound is larger than the m-th largest lower bound
         lis = np.where(U >= Fmax)[0]
         
-        if return_S:
+        if lr_return_S:
             S_history.append(lis)
             
         # exit condition check 
-        flag = (len(lis) > nnodes) and ((np.abs(np.mean(contr))) > (sgctoll * Fmax))
+        flag = (len(lis) > nnodes) and ((np.abs(np.mean(contr))) > (lr_approximation_tol * Fmax))
         
         N += 1
         realN += 1
@@ -653,9 +653,9 @@ def stconvlr(A: csc_matrix,
         if len(lis) > nnodes: 
             # weak convergence
             # add additional nodes which have a lower bound very close to Lmax
-            ivec = np.where((Fmax - Fs[nnodes:]) < (sgctau * Fmax))[0]
-            incr = min(len(ivec), sgcmaxkappa)
-            incr = max(incr, sgcminkappa)
+            ivec = np.where((Fmax - Fs[nnodes:]) < (lr_weak_convergence_tol * Fmax))[0]
+            incr = min(len(ivec), lr_max_additional_nodes)
+            incr = max(incr, lr_min_additional_nodes)
             logger.info(f"Weak convergence, added {incr} additional nodes")
         else:
             # strong convergence
