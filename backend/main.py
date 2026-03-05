@@ -22,6 +22,11 @@ from hybrid import sgcenhyb, commhyb, stconvhyb
 from primme import PrimmeError
 from secrets import token_urlsafe
 
+logger = logging.getLogger(__name__) # for printing logs in dev
+logging.basicConfig(level=logging.INFO)
+
+NUMBER_OF_LOW_RANK_NODES_ESTIMATE = 10 # indicates "10 times the number of nodes seeked via hybrid method"
+
 # middleware to limit body size (of the HTTP request)
 class BodySizeLimitMiddleware(BaseHTTPMiddleware):
     def __init__(self, app, max_body_size: int = 100 * 1024 * 1024):  # default: 100MB
@@ -45,16 +50,23 @@ app = FastAPI()
 # adds middleware
 app.add_middleware(BodySizeLimitMiddleware, max_body_size=100 * 1024 * 1024)  # 100 MB
 
-# Inizializza il client Redis
-# Nel docker-compose abbiamo definito REDIS_URL=redis://redis:6379/0
+# initialize Redis client
+# in docker-compose the URL for the client is defined as REDIS_URL=redis://redis:6379/0
 redis_client = redis.from_url(os.getenv("REDIS_URL", "redis://localhost:6379/0"))
 
-# Tempo di scadenza della sessione in secondi (es. 24 ore)
-SESSION_EXPIRE_TIME = 86400
+# session expires in 2 hours
+SESSION_EXPIRE_TIME = 7200
 
-# --- DEPENDENCY PER IL TOKEN ---
-# Questa funzione verrà usata per estrarre e deserializzare i dati da Redis per ogni rotta
-def get_network_session(x_network_token: str = Header(...)):
+
+def get_network_session(x_network_token: str = Header(...)) -> csc_matrix:
+    """
+    Extract the complex network for the corresponding token from Redis. 
+
+    :param x_network_token: token associated to the complex network
+    
+    :return network: corresponding complex network in scipy.sparse.csc_matrix format
+    """
+
     if not x_network_token:
         raise HTTPException(status_code=400, detail="token is missing")
     
@@ -62,15 +74,10 @@ def get_network_session(x_network_token: str = Header(...)):
     if not data_bytes:
         raise HTTPException(status_code=404, detail="session expired or not existing, try uploading the file to '/api/'")
     
-    # Rinnova la scadenza della sessione (opzionale, se vuoi che scada per inattività)
+    # if the network is accessed, the expiring date is updated
     redis_client.expire(x_network_token, SESSION_EXPIRE_TIME)
     
     return pickle.loads(data_bytes)
-
-clusters = {}
-network: csc_matrix = None # the adjacency matrix
-leig: float = 0.0 # largest eigenvalue
-
 
 @app.get("/api/")
 def read_root():
@@ -80,7 +87,7 @@ def read_root():
 @app.post("/api/")
 async def overview(file: UploadFile = File(...)):
     """
-    Processes the adjacency matrix in the .mat file and returns the network info and the clusters.
+    Processes the adjacency matrix in the .mat file and returns the network info as well as the clusters.
     
     Response JSON:
     {
@@ -148,7 +155,7 @@ async def overview(file: UploadFile = File(...)):
                 }
             )
         
-        leig = eigsh(network, k=1, which='LA', return_eigenvectors=False)[0]
+        leig = eigsh(network, k=1, which='LA', return_eigenvectors=False)[0] # compute the largest eigenvalue
         clusters = get_clusters(adj)
         size_of_clusters = {}
 
@@ -156,17 +163,20 @@ async def overview(file: UploadFile = File(...)):
         for cluster in clusters.keys():
             size_of_clusters[cluster] = len(clusters[cluster])
 
-        # 1. Genera un token univoco
+        # generate the unique token
         token = token_urlsafe(32)
         
-        # 2. Prepara i dati da salvare
+        # in the DB is saved the network as well as the largest eigenvalue and the clusters 
+        # this allows some sort of "caching" 
         session_data = {
             "network": network,
             "leig": leig,
             "clusters": clusters
         }
         
-        # 3. Salva in Redis (serializzato con pickle) con scadenza
+        # Redis saves with: 
+        # - key = token
+        # value = serialized data with pickle
         redis_client.setex(
             token, 
             SESSION_EXPIRE_TIME, 
@@ -197,7 +207,7 @@ async def overview(file: UploadFile = File(...)):
 
 
 @app.post("/api/cluster")
-def nodes_of_cluster(request: ClusterRequest):
+def nodes_of_cluster(request: ClusterRequest, session: dict = Depends(get_network_session)):
     """
     Returns the nodes of the specified cluster.
     
@@ -206,6 +216,8 @@ def nodes_of_cluster(request: ClusterRequest):
         "clusterID": str (number of the cluster as a string)
     }
     """
+    clusters = session["clusters"]
+
     try:
         cluster_id = int(request.clusterID)
         if cluster_id in clusters:
@@ -215,6 +227,7 @@ def nodes_of_cluster(request: ClusterRequest):
                 status_code=404,
                 content={"error": f"Cluster {cluster_id} not found"}
             )
+            
     except ValueError:
         return JSONResponse(
             status_code=400,
@@ -223,7 +236,14 @@ def nodes_of_cluster(request: ClusterRequest):
     
 @app.post("/api/gaussexp")
 def get_gauss_exp(request: ExpRequest, session: dict = Depends(get_network_session)):
-
+    """
+    Computes the exponential using Gauss quadrature.
+    
+    Response JSON:
+    {
+        "exp": float (the exponential value)
+    }
+    """
     network = session["network"]
     leig = session["leig"]
 
@@ -239,7 +259,7 @@ def get_gauss_exp(request: ExpRequest, session: dict = Depends(get_network_sessi
     }
 
 @app.post("/api/gaussres")
-def get_gauss_res(request: ResRequest):
+def get_gauss_res(request: ResRequest, session: dict = Depends(get_network_session)):
     """
     Computes the resolvent using Gauss quadrature.
     
@@ -248,6 +268,8 @@ def get_gauss_res(request: ResRequest):
         "res": float (the resolvent value)
     }
     """
+    network = session["network"]
+    leig = session["leig"]
     if network is None:
         return JSONResponse(
             status_code=400, 
@@ -270,7 +292,6 @@ def get_gauss_res(request: ResRequest):
     
 @app.post("/api/random")
 def get_random_complex_network(request: RandomComplexNetworkRequest): 
-    global network, leig, clusters
     if request.model == "scale_free": 
         network = gnt.generate_scale_free_complex_network(request.nnodes, request.k)
     else:
@@ -278,20 +299,49 @@ def get_random_complex_network(request: RandomComplexNetworkRequest):
 
     leig = eigsh(network, k=1, which='LA', return_eigenvectors=False)[0]
     clusters = get_clusters(network)
+    size_of_clusters = {}
+        # for each cluster compute the size of the cluster
+    for cluster in clusters.keys():
+        size_of_clusters[cluster] = len(clusters[cluster])
 
-    return {
-        "nodes": network.shape[0], 
-        "edges": network.nnz, 
-        "largest_eigenvalue": leig, 
-        "max value for alpha": 1 / leig,
+    # generate the unique token
+    token = token_urlsafe(32)
+    logger.info(token)
+        
+    # in the DB is saved the network as well as the largest eigenvalue and the clusters 
+    # this allows some sort of "caching" 
+    session_data = {
+        "network": network,
+        "leig": leig,
         "clusters": clusters
+    }
+        
+    # Redis saves with: 
+        # - key = token
+        # value = serialized data with pickle
+        # the token has an expiring time
+    redis_client.setex(
+        token, 
+        SESSION_EXPIRE_TIME, 
+        pickle.dumps(session_data)
+    )
+        
+    return {
+        "token": token,
+        "nodes": int(network.shape[0]),
+        "edges": int(network.nnz), 
+        "largest eigenvalue": leig,
+        "max value for alpha": float(1 / leig),
+        "self loops": 0,
+        "clusters": clusters,
+        "numberOfClusters": len(size_of_clusters.keys())
     }
 
 @app.post("/api/sgclr")
-async def get_sgclr(request: LowRankSubgraphCentrality):
-    logger = logging.getLogger(__name__)
+async def get_sgclr(request: LowRankSubgraphCentrality, session: dict = Depends(get_network_session)):
+    network = session["network"]
     
-    # Low-rank options for Gauss quadrature
+    # low rank options
     options = {
         "lr_max_iterations": request.max_iter or 300, 
         "lr_max_eigenvectors": 200,
@@ -314,9 +364,14 @@ async def get_sgclr(request: LowRankSubgraphCentrality):
         )
     
     logger.info(f"Starting sgclr computation with {network.shape[0]} nodes, fun={request.fun_name}, nnodes={request.nnodes}")
-    vip_nodes, vip_sgc, num_eigs, candidates_history = sgcenlr(network, request.fun_name or "exp", request.nnodes or 1, options)
-    
-    # TODO: check default parameters to prevent missing convergence
+
+    try: 
+        vip_nodes, vip_sgc, num_eigs, candidates_history = sgcenlr(network, request.fun_name or "exp", request.nnodes or 1, options)
+    except PrimmeError: 
+        return JSONResponse(
+            status_code=400, 
+            content={"error": "maximum number of iterations or matvecs reached, try decreasing batch size."}
+    )
 
     return {
         "vip_nodes": vip_nodes.tolist(),
@@ -327,10 +382,11 @@ async def get_sgclr(request: LowRankSubgraphCentrality):
 
 
 @app.post("/api/commlr")
-async def get_commlr(request: LowRankCommunicability):
-    logger = logging.getLogger(__name__)
+async def get_commlr(request: LowRankCommunicability, session: dict = Depends(get_network_session)):
+    network = session["network"]
+    leig = session["leig"]
     
-    # Low-rank options for communicability
+    # low-rank options
     options = {
         "lr_max_iterations": request.max_iter or 300, 
         "lr_max_eigenvectors": 200,
@@ -353,9 +409,14 @@ async def get_commlr(request: LowRankCommunicability):
         )
     
     logger.info(f"Starting commlr computation with {network.shape[0]} nodes, fun={request.fun_name}, nnodes={request.nnodes}")
-    vip_nodes, vip_comm, num_eigs, candidates_history = commlr(network, request.i, request.fun_name or "exp", request.nnodes or 1, options)
-    
-    # TODO: check default parameters to prevent missing convergence
+
+    try: 
+        vip_nodes, vip_comm, num_eigs, candidates_history = commlr(network, request.i, request.fun_name or "exp", request.nnodes or 1, options)
+    except PrimmeError: 
+        return JSONResponse(
+            status_code=400, 
+            content={"error": "maximum number of iterations or matvecs reached, try decreasing batch size."}
+    )
 
     return {
         "vip_nodes": vip_nodes.tolist(),
@@ -365,10 +426,11 @@ async def get_commlr(request: LowRankCommunicability):
     }
 
 @app.post("/api/stconvlr")
-async def get_stconvlr(request: LowRankSubgraphCentrality):
-    logger = logging.getLogger(__name__)
+async def get_stconvlr(request: LowRankSubgraphCentrality, session: dict = Depends(get_network_session)):
+    network = session["network"]
+    leig = session["leig"]
     
-    # Low-rank options for starting convenience
+    # low rank options
     options = {
         "lr_max_iterations": request.max_iter or 300, 
         "lr_max_eigenvectors": 200,
@@ -391,9 +453,14 @@ async def get_stconvlr(request: LowRankSubgraphCentrality):
         )
     
     logger.info(f"Starting sgclr computation with {network.shape[0]} nodes, fun={request.fun_name}, nnodes={request.nnodes}")
-    vip_nodes, vip_stconv, num_eigs, candidates_history = stconvlr(network, request.fun_name or "exp", request.nnodes or 1, options)
     
-    # TODO: check default parameters to prevent missing convergence
+    try: 
+        vip_nodes, vip_stconv, num_eigs, candidates_history = stconvlr(network, request.fun_name or "exp", request.nnodes or 1, options)
+    except PrimmeError: 
+        return JSONResponse(
+            status_code=400, 
+            content={"error": "maximum number of iterations or matvecs reached, try decreasing batch size."}
+    )
 
     return {
         "vip_nodes": vip_nodes.tolist(),
@@ -403,7 +470,9 @@ async def get_stconvlr(request: LowRankSubgraphCentrality):
     }
 
 @app.post("/api/sgcgauss")
-async def get_sgcgauss(request: GaussSubgraphCentrality):
+async def get_sgcgauss(request: GaussSubgraphCentrality, session: dict = Depends(get_network_session)):
+    network = session["network"]
+    leig = session["leig"]
 
     if network is None:
         return JSONResponse(
@@ -411,7 +480,7 @@ async def get_sgcgauss(request: GaussSubgraphCentrality):
             content={"error": "network not initialized yet. First send a .mat file to /api/."}
         )
 
-    # Gauss quadrature options
+    # gauss quadrature options
     options = {
         "gauss_tol": request.tol or 1e-3, 
         "gauss_max_iterations": request.max_iter or 200,
@@ -430,14 +499,16 @@ async def get_sgcgauss(request: GaussSubgraphCentrality):
     }
 
 @app.post("/api/commgauss")
-async def get_commgauss(request: GaussCommunicability):
+async def get_commgauss(request: GaussCommunicability, session: dict = Depends(get_network_session)):
+    network = session["network"]
+
     if network is None:
         return JSONResponse(
             status_code=400, 
             content={"error": "network not initialized yet. First send a .mat file to /api/."}
         )
 
-    # Gauss quadrature options for communicability
+    # gauss quadrature options 
     options = {
         "gauss_tol": request.tol or 1e-3, 
         "gauss_max_iterations": request.max_iter or 200,
@@ -461,7 +532,9 @@ async def get_commgauss(request: GaussCommunicability):
     }
 
 @app.post("/api/stconvgauss")
-async def get_stconvgauss(request: GaussSubgraphCentrality):
+async def get_stconvgauss(request: GaussSubgraphCentrality, session: dict = Depends(get_network_session)):
+    network = session["network"]
+    leig = session["leig"]
 
     if network is None:
         return JSONResponse(
@@ -469,7 +542,7 @@ async def get_stconvgauss(request: GaussSubgraphCentrality):
             content={"error": "network not initialized yet. First send a .mat file to /api/."}
         )
 
-    # Gauss quadrature options for starting convenience
+    # gauss quadrature options 
     options = {
         "gauss_tol": request.tol or 1e-3, 
         "gauss_max_iterations": request.max_iter or 200,
@@ -489,22 +562,23 @@ async def get_stconvgauss(request: GaussSubgraphCentrality):
     }
 
 @app.post("/api/sgchyb")
-async def get_sgchyb(request: HybridSubgraphCentrality):
-
+async def get_sgchyb(request: HybridSubgraphCentrality, session: dict = Depends(get_network_session)):
+    network = session["network"]
+    leig = session["leig"]
     if network is None:
         return JSONResponse(
             status_code=400, 
             content={"error": "network not initialized yet. First send a .mat file to /api/."}
         )
 
-    # Hybrid options: low-rank approximation + Gauss quadrature refinement
-    # Low-rank options
+    # hybrid options: low-rank approximation + Gauss quadrature refinement
+    # low-rank options
     lr_options = {
         "lr_max_iterations": request.max_iter or 300, 
         "lr_max_eigenvectors": 200,
         "lr_approximation_tol": 1e-3,
         "lr_weak_convergence_tol": 1e-1,
-        "lr_nnodes": request.low_rank_nnodes or int(10 * request.nnodes), # estimate of the number of nodes for low rank
+        "lr_nnodes": request.low_rank_nnodes or int(NUMBER_OF_LOW_RANK_NODES_ESTIMATE * request.nnodes), # estimate of the number of nodes for low rank
         "lr_min_additional_nodes": 5,
         "lr_max_additional_nodes": 100,
         "lr_shift": request.shift if request.shift is not None else True,
@@ -514,17 +588,16 @@ async def get_sgchyb(request: HybridSubgraphCentrality):
         "lr_return_S": True,
     }
     
-    # Gauss options
+    # gauss quadrature options
     gauss_options = {
         "gauss_tol": request.tol or 1e-3,
         "gauss_max_iterations": 200,
         "gauss_largest_eigenvalue": leig,
     }
     
-    # Combine options for hybrid method
+    # combine options for hybrid method
     options = {**lr_options, **gauss_options, "alpha": request.alpha or 0.0}
 
-    logger = logging.getLogger(__name__)
     logger.info(f"Starting sgchyb computation with {network.shape[0]} nodes, fun={request.fun_name}, nnodes={request.nnodes}")
     try: 
         vip_nodes, vip_sgc, info, iters, allsgc, vip_lr, vipsgc_lr, realN_lr, S_history_lr, convergence = sgcenhyb(network, request.fun_name or "exp", request.nnodes or 1, options)
@@ -549,7 +622,8 @@ async def get_sgchyb(request: HybridSubgraphCentrality):
     }
 
 @app.post("/api/commhyb")
-async def get_commhyb(request: HybridCommunicability):
+async def get_commhyb(request: HybridCommunicability, session: dict = Depends(get_network_session)):
+    network = session["network"]
 
     if network is None:
         return JSONResponse(
@@ -557,14 +631,14 @@ async def get_commhyb(request: HybridCommunicability):
             content={"error": "network not initialized yet. First send a .mat file to /api/."}
         )
 
-    # Hybrid options: low-rank approximation + Gauss quadrature refinement
-    # Low-rank options
+    # hybrid options: low-rank approximation + Gauss quadrature refinement
+    # low-rank options
     lr_options = {
         "lr_max_iterations": request.max_iter or 300,
         "lr_max_eigenvectors": 200,
         "lr_approximation_tol": 1e-3,
         "lr_weak_convergence_tol": 1e-1,
-        "lr_nnodes": request.low_rank_nnodes or int(10 * request.nnodes), # estimate of the number of nodes for low rank
+        "lr_nnodes": request.low_rank_nnodes or int(NUMBER_OF_LOW_RANK_NODES_ESTIMATE * request.nnodes), # estimate of the number of nodes for low rank
         "lr_min_additional_nodes": 5,
         "lr_max_additional_nodes": 100,
         "lr_shift": request.shift if request.shift is not None else True,
@@ -574,16 +648,15 @@ async def get_commhyb(request: HybridCommunicability):
         "lr_return_S": True,
     }
     
-    # Gauss options
+    # gauss options
     gauss_options = {
         "gauss_tol": request.tol or 1e-3,
         "gauss_max_iterations": 200,
     }
     
-    # Combine options for hybrid method
+    # combine options for hybrid method
     options = {**lr_options, **gauss_options, "alpha": request.alpha or 0.0}
     
-    logger = logging.getLogger(__name__)
     logger.info(f"Starting commhyb computation with {network.shape[0]} nodes, fun={request.fun_name}, nnodes={request.nnodes}")
     try: 
         vip_nodes, vip_comm, info, iters, allcomm, vip_lr_local, vipcomm_lr_local, realN_lr, S_history_lr, convergence = commhyb(network, request.i, request.fun_name or "exp", request.nnodes or 1, options)
@@ -607,7 +680,9 @@ async def get_commhyb(request: HybridCommunicability):
     }
 
 @app.post("/api/stconvhyb")
-async def get_stconvhyb(request: HybridSubgraphCentrality):
+async def get_stconvhyb(request: HybridSubgraphCentrality, session: dict = Depends(get_network_session)):
+    network = session["network"]
+    leig = session["leig"]
 
     if network is None:
         return JSONResponse(
@@ -615,14 +690,14 @@ async def get_stconvhyb(request: HybridSubgraphCentrality):
             content={"error": "network not initialized yet. First send a .mat file to /api/."}
         )
 
-    # Hybrid options: low-rank approximation + Gauss quadrature refinement
-    # Low-rank options
+    # hybrid options: low-rank approximation + Gauss quadrature refinement
+    # low-rank options
     lr_options = {
         "lr_max_iterations": request.max_iter or 300,
         "lr_max_eigenvectors": 200,
         "lr_approximation_tol": 1e-3,
         "lr_weak_convergence_tol": 1e-1,
-        "lr_nnodes": request.low_rank_nnodes or int(10 * request.nnodes), # estimate of the number of nodes for low rank
+        "lr_nnodes": request.low_rank_nnodes or int(NUMBER_OF_LOW_RANK_NODES_ESTIMATE * request.nnodes), # estimate of the number of nodes for low rank
         "lr_min_additional_nodes": 5,
         "lr_max_additional_nodes": 100,
         "lr_shift": request.shift if request.shift is not None else True,
@@ -632,17 +707,16 @@ async def get_stconvhyb(request: HybridSubgraphCentrality):
         "lr_return_S": True,
     }
     
-    # Gauss options
+    # gauss options
     gauss_options = {
         "gauss_tol": request.tol or 1e-3,
         "gauss_max_iterations": 200,
         "gauss_largest_eigenvalue": leig,
     }
     
-    # Combine options for hybrid method
+    # combine options for hybrid method
     options = {**lr_options, **gauss_options, "alpha": request.alpha or 0.0}
 
-    logger = logging.getLogger(__name__)
     logger.info(f"Starting stconvhyb computation with {network.shape[0]} nodes, fun={request.fun_name}, nnodes={request.nnodes}")
 
     try: 

@@ -20,10 +20,14 @@ These are some of the functionalities introduced in this tool:
 
 The entire project is made in Vue, with the aid of Sigma.js v2 and Graphology for the visualization of the network, and the backend which processes the complex network is based on FastAPI, a popular and high-performing Python framework for backend development.
 
-## Usage
-This project makes use of *Nginx* as a reverse proxy, in order to serve the static Vue files and the API calls whenever required. 
+All the data working data of the web-app is stored with Redis, an high performance in-memory database. Redis stores the data with _key-value_ pairs that are going to be accessible through a token with validity of 2 hours.
 
-In general is strongly suggested to make the HTTP request to this single endpoint: 
+Note that the database in this case is not persistent since there is no need to save the network persistently. Future versions may implement a persistent storage if needed.
+
+## Usage
+This project makes use of *Nginx* as a reverse proxy, in order to serve the static Vue files and the API calls whenever required. In addition, only the port 80 is exposed making the software safer. At the moment the ports 5173 for frontend and 8000 for backend are avalaible for dev as well, they won't be available once the software is in production.
+
+Generally, is strongly suggested to make the HTTP request to this single endpoint: 
 ```markdown
 localhost:80/
 ```
