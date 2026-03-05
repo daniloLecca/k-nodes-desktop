@@ -13,6 +13,16 @@ services:
       - "8000:8000"     # optional: for testing in dev without nginx
     environment:
       - PYTHONUNBUFFERED=1
+      - REDIS_URL=redis://redis:6379/0 # env variable for Redis
+    depends_on:
+      - redis  # making sure that redis starts before the backend
+
+  # --- REDIS --- #
+  redis:
+    image: redis:alpine
+    container_name: network_redis
+    ports:
+      - "6379:6379"
 
   # --- FRONTEND (Vue + Vite) ---
   frontend:

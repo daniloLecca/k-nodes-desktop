@@ -2,11 +2,12 @@ import io
 import numpy as np
 import scipy
 import logging
+import pickle
 import generate as gnt
 from scipy import sparse
 from scipy.sparse import csc_matrix
 from scipy.sparse.linalg import eigsh
-from fastapi import FastAPI, File, UploadFile, Request
+from fastapi import FastAPI, File, UploadFile, Request, Header, Depends, HTTPException
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import Response
@@ -42,7 +43,28 @@ app = FastAPI()
 # adds middleware
 app.add_middleware(BodySizeLimitMiddleware, max_body_size=100 * 1024 * 1024)  # 100 MB
 
-# TODO: add expiring for this variables, only needed for when it will be deployed
+# Inizializza il client Redis
+# Nel docker-compose abbiamo definito REDIS_URL=redis://redis:6379/0
+redis_client = redis.from_url(os.getenv("REDIS_URL", "redis://localhost:6379/0"))
+
+# Tempo di scadenza della sessione in secondi (es. 24 ore)
+SESSION_EXPIRE_TIME = 86400
+
+# --- DEPENDENCY PER IL TOKEN ---
+# Questa funzione verrà usata per estrarre e deserializzare i dati da Redis per ogni rotta
+def get_network_session(x_network_token: str = Header(...)):
+    if not x_network_token:
+        raise HTTPException(status_code=400, detail="token is missing")
+    
+    data_bytes = redis_client.get(x_network_token)
+    if not data_bytes:
+        raise HTTPException(status_code=404, detail="session expired or not existing, try uploading the file to '/api/'")
+    
+    # Rinnova la scadenza della sessione (opzionale, se vuoi che scada per inattività)
+    redis_client.expire(x_network_token, SESSION_EXPIRE_TIME)
+    
+    return pickle.loads(data_bytes)
+
 clusters = {}
 network: csc_matrix = None # the adjacency matrix
 leig: float = 0.0 # largest eigenvalue
@@ -131,8 +153,26 @@ async def overview(file: UploadFile = File(...)):
         # for each cluster compute the size of the cluster
         for cluster in clusters.keys():
             size_of_clusters[cluster] = len(clusters[cluster])
+
+        # 1. Genera un token univoco
+        token = token_urlsafe(32)
+        
+        # 2. Prepara i dati da salvare
+        session_data = {
+            "network": network,
+            "leig": leig,
+            "clusters": clusters
+        }
+        
+        # 3. Salva in Redis (serializzato con pickle) con scadenza
+        redis_client.setex(
+            token, 
+            SESSION_EXPIRE_TIME, 
+            pickle.dumps(session_data)
+        )
         
         return {
+            "token": token,
             "filename": file.filename,
             "nodes": int(list(adj.shape)[0]),
             "edges": int(adj.nnz), 
@@ -180,7 +220,11 @@ def nodes_of_cluster(request: ClusterRequest):
         )
     
 @app.post("/api/gaussexp")
-def get_gauss_exp(request: ExpRequest):
+def get_gauss_exp(request: ExpRequest, session: dict = Depends(get_network_session)):
+
+    network = session["network"]
+    leig = session["leig"]
+
     if network is None:
         return JSONResponse(status_code=400, content={"error": "network not initialized yet. First send a .mat file to /api/."})
 
