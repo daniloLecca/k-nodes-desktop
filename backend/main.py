@@ -1,4 +1,6 @@
 import io
+import os
+import redis
 import numpy as np
 import scipy
 import logging
