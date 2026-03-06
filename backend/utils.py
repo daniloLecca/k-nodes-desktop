@@ -84,7 +84,8 @@ class HybridSubgraphCentrality(BaseModel):
     alpha: float | None = None
     max_iter: int | None = None
     batch_size: int | None = None
-    tol: float | None = None
+    gauss_tol: float | None = None
+    low_rank_tol: float | None = None
 
 class HybridCommunicability(HybridSubgraphCentrality):
     i: int

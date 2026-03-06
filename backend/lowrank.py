@@ -50,8 +50,8 @@ def sgcenlr(A: csc_matrix,
     # unpack default options
     lr_max_iterations = opts.get('lr_max_iterations', 300) # max number of iterations
     lr_max_eigenvectors = opts.get('lr_max_eigenvectors', 200) # max size of eigenvectors database
-    lr_approximation_tol = opts.get('lr_approximation_tol', 0.0) # tolerance for exit condition (lower bound stagnation)
-    lr_weak_convergence_tol = opts.get('lr_weak_convergence_tol', 1e-1) # tolerance for weak convergence
+    lr_approximation_tol = opts.get('lr_approximation_tol', 1e-1) # tolerance for exit condition (lower bound stagnation)
+    lr_weak_convergence_tol = opts.get('lr_weak_convergence_tol', 0) # tolerance for weak convergence
     lr_min_additional_nodes = opts.get('lr_min_additional_nodes', 5) # min number of additional VIP nodes (weak convergence)
     lr_max_additional_nodes = opts.get('lr_max_additional_nodes', 100) # max number of additional VIP nodes (weak convergence)
     lr_shift = opts.get('lr_shift', True) # spectrum shift, default: True

@@ -576,7 +576,7 @@ async def get_sgchyb(request: HybridSubgraphCentrality, session: dict = Depends(
     lr_options = {
         "lr_max_iterations": request.max_iter or 300, 
         "lr_max_eigenvectors": 200,
-        "lr_approximation_tol": 1e-3,
+        "lr_approximation_tol": request.low_rank_tol or 1e-3,
         "lr_weak_convergence_tol": 1e-1,
         "lr_nnodes": request.low_rank_nnodes or int(NUMBER_OF_LOW_RANK_NODES_ESTIMATE * request.nnodes), # estimate of the number of nodes for low rank
         "lr_min_additional_nodes": 5,
@@ -590,7 +590,7 @@ async def get_sgchyb(request: HybridSubgraphCentrality, session: dict = Depends(
     
     # gauss quadrature options
     gauss_options = {
-        "gauss_tol": request.tol or 1e-3,
+        "gauss_tol": request.gauss_tol or 1e-3,
         "gauss_max_iterations": 200,
         "gauss_largest_eigenvalue": leig,
     }
@@ -634,9 +634,9 @@ async def get_commhyb(request: HybridCommunicability, session: dict = Depends(ge
     # hybrid options: low-rank approximation + Gauss quadrature refinement
     # low-rank options
     lr_options = {
-        "lr_max_iterations": request.max_iter or 300,
+        "lr_max_iterations": request.max_iter or 300, 
         "lr_max_eigenvectors": 200,
-        "lr_approximation_tol": 1e-3,
+        "lr_approximation_tol": request.low_rank_tol or 1e-3,
         "lr_weak_convergence_tol": 1e-1,
         "lr_nnodes": request.low_rank_nnodes or int(NUMBER_OF_LOW_RANK_NODES_ESTIMATE * request.nnodes), # estimate of the number of nodes for low rank
         "lr_min_additional_nodes": 5,
@@ -648,9 +648,9 @@ async def get_commhyb(request: HybridCommunicability, session: dict = Depends(ge
         "lr_return_S": True,
     }
     
-    # gauss options
+    # gauss quadrature options
     gauss_options = {
-        "gauss_tol": request.tol or 1e-3,
+        "gauss_tol": request.gauss_tol or 1e-3,
         "gauss_max_iterations": 200,
     }
     
@@ -690,12 +690,10 @@ async def get_stconvhyb(request: HybridSubgraphCentrality, session: dict = Depen
             content={"error": "network not initialized yet. First send a .mat file to /api/."}
         )
 
-    # hybrid options: low-rank approximation + Gauss quadrature refinement
-    # low-rank options
     lr_options = {
-        "lr_max_iterations": request.max_iter or 300,
+        "lr_max_iterations": request.max_iter or 300, 
         "lr_max_eigenvectors": 200,
-        "lr_approximation_tol": 1e-3,
+        "lr_approximation_tol": request.low_rank_tol or 1e-3,
         "lr_weak_convergence_tol": 1e-1,
         "lr_nnodes": request.low_rank_nnodes or int(NUMBER_OF_LOW_RANK_NODES_ESTIMATE * request.nnodes), # estimate of the number of nodes for low rank
         "lr_min_additional_nodes": 5,
@@ -707,9 +705,9 @@ async def get_stconvhyb(request: HybridSubgraphCentrality, session: dict = Depen
         "lr_return_S": True,
     }
     
-    # gauss options
+    # gauss quadrature options
     gauss_options = {
-        "gauss_tol": request.tol or 1e-3,
+        "gauss_tol": request.gauss_tol or 1e-3,
         "gauss_max_iterations": 200,
         "gauss_largest_eigenvalue": leig,
     }
