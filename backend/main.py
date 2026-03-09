@@ -434,8 +434,8 @@ async def get_stconvlr(request: LowRankSubgraphCentrality, session: dict = Depen
     options = {
         "lr_max_iterations": request.max_iter or 300, 
         "lr_max_eigenvectors": 200,
-        "lr_approximation_tol": request.tol or 0,
-        "lr_weak_convergence_tol": 1e-3,
+        "lr_approximation_tol": request.tol or 1e-1,
+        "lr_weak_convergence_tol": 0,
         "lr_min_additional_nodes": 1,
         "lr_max_additional_nodes": 100,
         "lr_shift": request.shift if request.shift is not None else True, 
