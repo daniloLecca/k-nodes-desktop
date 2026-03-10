@@ -5,7 +5,7 @@ An online tool for seeking the most important nodes of a network through the com
 
 ## Description
 
-This tool offers is born with the intention of making available the tool *VIPNODES* already existing in **MATLAB**.
+This tool offers was created with the intent of making available the tool *VIPNODES*, which was originally developed in **MATLAB**.
 
 These are some of the functionalities introduced in this tool:
 

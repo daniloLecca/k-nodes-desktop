@@ -329,7 +329,7 @@ def get_random_complex_network(request: RandomComplexNetworkRequest):
     return {
         "token": token,
         "nodes": int(network.shape[0]),
-        "edges": int(network.nnz), 
+        "edges": int(network.nnz // 2), # the matrix is symmetric 
         "largest eigenvalue": leig,
         "max value for alpha": float(1 / leig),
         "self loops": 0,

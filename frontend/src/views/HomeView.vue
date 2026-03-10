@@ -1,10 +1,16 @@
 <script setup>
-  import { ref } from 'vue'
+  import { ref, computed } from 'vue'
   import { useComplexNetworkStore } from '@/stores/complexNetwork'
   import router from '@/router/index'
+  import { sendFile, generateRandomNetwork } from '@/utils/apis'
 
   const selectedFile = ref(null)
   const error = ref('')
+  const pressedRandomNetworkButton = ref(false)
+  const randomNodes = ref(3)
+  const randomEdges = ref(2)
+  const networkModel = ref('scale_free')
+  const rewiringProbability = ref(0.01)
 
   const complexNetworkStore = useComplexNetworkStore()
 
@@ -15,57 +21,57 @@
   }
 
   const uploadFile = async () => {
-    if(!selectedFile.value) return;
-
-    const formData = new FormData();
-    formData.append('file', selectedFile.value);
-
-    try {
-      const response = await fetch('/api/', {
-      method: 'POST', 
-      body: formData
-    })
-
-    const payload = await response.json().catch(() => ({}));
-
-    if (response.status === 400) {
-      error.value = payload?.error || payload?.detail || 'request not valid (400).'
-      return
-    }
-
-    if (!response.ok) {
-      error.value = payload?.error || payload?.detail || `server error (${response.status}).`
-      return
-    }
-
-    const result = payload;
-    
-
-    console.log('Upload success: ', result);
-    complexNetworkStore.fileName = result["filename"]
-    complexNetworkStore.token = result["token"]
-    complexNetworkStore.nnodes = result["nodes"]
-    complexNetworkStore.edges = result["edges"]
-    complexNetworkStore.largestEigenvalue = result["largest eigenvalue"]
-    complexNetworkStore.maxAlpha = result["max value for alpha"]
-    complexNetworkStore.selfLoops = result["self loops"]
-    complexNetworkStore.clusters = result["clusters"]
-    
-    router.push("/overview");
-
-        } catch (err) {
-          error.value = 'Errore di rete. Controlla la connessione e riprova.'
-          console.log(err.message)
-    }
-
+    error.value = await sendFile(selectedFile.value)
   }
+
+  const openRandomNetworkPopup = () => {
+    pressedRandomNetworkButton.value = true
+  }
+
+  const closeRandomNetworkPopup = () => {
+    pressedRandomNetworkButton.value = false
+  }
+
+  const clampEdges = () => {
+    if (randomEdges.value < 1) randomEdges.value = 2
+    if (randomEdges.value >= randomNodes.value) randomEdges.value = randomNodes.value - 1
+  }
+
+  const clampProbability = () => {
+    if (rewiringProbability.value > 1) rewiringProbability.value = 0.9999
+  }
+
+  const popupValid = computed(() => {
+    if (randomNodes.value <= randomEdges.value) return false
+    if (networkModel.value === 'small_world' &&
+        (rewiringProbability.value <= 0 || rewiringProbability.value > 1)) return false
+    return true
+  })
+
+  const submitRandomNetworkParams = async () => {
+
+    let formData = {
+      nnodes: randomNodes.value,
+      k: randomEdges.value,
+      model: networkModel.value
+    }
+
+    error.value = await generateRandomNetwork(formData, rewiringProbability.value)
+    closeRandomNetworkPopup()
+  }
+
+  // TODO: add loader when waiting for HTTP response
+
 </script>
 
 <template>
   <main>
     <RouterLink to="/"><h1>VIPNODES</h1></RouterLink>
     <input type='file' @change='handleFileUpload' accept=".mat"/>
-    <button class="upload-button" @click='uploadFile' v-if="selectedFile">
+    <button class="app-button" @click="openRandomNetworkPopup">
+      Random network
+    </button>
+    <button class="app-button app-button--confirm upload-button" @click='uploadFile' v-if="selectedFile">
       <svg class="upload-icon" viewBox="0 0 24 24" aria-hidden="true">
         <path d="M12 3l-5 5h3v6h4V8h3l-5-5zm-7 13v5h14v-5h-2v3H7v-3H5z" />
       </svg>
@@ -74,34 +80,87 @@
     <p v-if="selectedFile">Selected file: {{ selectedFile.name }}</p>
     <p v-if="error" class="error-message">{{ error }}</p>
   </main>
+
+  <div
+    v-if="pressedRandomNetworkButton"
+    class="popup-overlay"
+    @click="closeRandomNetworkPopup"
+  >
+    <div class="popup-modal" @click.stop>
+      <h2>Generate a random network</h2>
+
+      <label for="random-nodes">Number of nodes</label>
+      <input
+        id="random-nodes"
+        v-model.number="randomNodes"
+        type="number"
+        min="3"
+      />
+
+      <label for="random-edges">Number of starting edges for each node</label>
+      <input
+        id="random-edges"
+        v-model.number="randomEdges"
+        type="number"
+        min="2"
+        :max="randomNodes - 1"
+        @input="clampEdges"
+      />
+      <p v-if="randomNodes <= randomEdges" class="input-error">Nodes must be greater than edges.</p>
+
+      <p class="radio-group-title">Network model</p>
+      <div class="popup-radio-group">
+        <label class="radio-option">
+          <input v-model="networkModel" type="radio" value="scale_free" />
+          <span>Scale free network</span>
+        </label>
+        <label class="radio-option">
+          <input v-model="networkModel" type="radio" value="small_world" />
+          <span>Small world network</span>
+        </label>
+      </div>
+
+      <template v-if="networkModel === 'small_world'">
+        <label for="option-probability">Rewiring probability</label>
+        <input
+          id="option-probability"
+          v-model.number="rewiringProbability"
+          type="number"
+          step="0.01"
+          min="0.01"
+          max="1"
+          @input="clampProbability"
+        />
+      </template>
+
+      <div class="popup-actions">
+        <button class="app-button app-button--outline--danger" @click="closeRandomNetworkPopup">
+          Cancel
+        </button>
+        <button class="app-button app-button--confirm" @click="submitRandomNetworkParams" :disabled="!popupValid">
+          Confirm
+        </button>
+      </div>
+    </div>
+  </div>
 </template>
 
 <style scoped>
-  @import "../assets/base.css";
-
-  
-
   h1 {
     font-size: 96px;
     font-weight: 600;
   }
 
-  .upload-button {
-    background-color: rgb(0, 174, 0);
-    border: 0;
-    padding: 0.65rem 1.5rem;
-    border-radius: 9999px;
-    display: inline-flex;
-    align-items: center;
-    gap: 0.45rem;
-    cursor: pointer;
-    transition: transform 0.15s ease, filter 0.2s ease;
+  main {
+    display: flex;
+    flex-direction: column;
+    gap: 0.8rem;
+    align-items: flex-start;
   }
 
   .upload-button span {
-    color: var(--vt-c-white-soft);
     font-size: 18px;
-    font-weight: 1000;
+    font-weight: 800;
     font-family: inherit;
   }
 
@@ -111,19 +170,92 @@
     fill: var(--vt-c-white-soft);
   }
 
-  .upload-button:hover {
-    filter: brightness(1.07);
-    transform: translateY(-1px);
-  }
-
-  .upload-button:focus-visible {
-    outline: 2px solid #0d7c0d;
-    outline-offset: 2px;
-  }
-
   .error-message {
     margin-top: 0.75rem;
     color: #c62828;
     font-weight: 600;
   }
+
+  .popup-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.55);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    padding: 1rem;
+  }
+
+  .popup-modal {
+    width: min(92vw, 420px);
+    background: var(--color-background-soft);
+    border: 1px solid var(--color-border);
+    border-radius: 1rem;
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+    padding: 1.2rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.7rem;
+  }
+
+  .popup-modal label {
+    font-weight: 500;
+  }
+
+  .popup-modal input {
+    width: 100%;
+    border: 1px solid var(--color-border);
+    border-radius: 0.6rem;
+    background: var(--color-background);
+    color: var(--color-text);
+    padding: 0.55rem 0.7rem;
+    font-family: inherit;
+    font-size: 1rem;
+  }
+
+  .radio-group-title {
+    font-weight: 500;
+    margin-top: 0.2rem;
+  }
+
+  .popup-radio-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .radio-option {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-weight: 400;
+  }
+
+  .radio-option input[type="radio"] {
+    width: 1rem;
+    height: 1rem;
+    accent-color: var(--color-tertiary);
+  }
+
+  .input-error {
+    color: var(--color-button-danger);
+    font-size: 0.85rem;
+    font-weight: 500;
+    margin-top: -0.3rem;
+  }
+
+  .popup-actions {
+    margin-top: 0.4rem;
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.6rem;
+  }
+
+  .app-button:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+    pointer-events: none;
+  }
+
 </style>

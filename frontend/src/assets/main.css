@@ -7,7 +7,89 @@
   font-weight: normal;
 }
 
+body {
+  min-height: 100vh;
+  color: var(--color-text);
+  background: var(--color-background);
+  transition:
+    color 0.5s,
+    background-color 0.5s;
+  line-height: 1.6;
+  font-family: "Lexend";
+  font-size: 16px;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
 a {
     text-decoration: none;
     color: inherit;
+}
+
+p {
+    font-weight: 200;
   }
+
+h2 {
+  font-weight: 400;
+}
+
+button,
+.app-button {
+  background-color: var(--color-tertiary);
+  color: var(--vt-c-white-soft);
+  border: 0;
+  padding: 0.65rem 1.5rem;
+  border-radius: 9999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 1rem;
+  font-weight: 700;
+  line-height: 1;
+  transition: transform 0.15s ease, filter 0.2s ease;
+}
+
+button:hover,
+.app-button:hover {
+  filter: brightness(1.07);
+  transform: translateY(-1px);
+}
+
+button:focus-visible,
+.app-button:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--color-tertiary), black 25%);
+  outline-offset: 2px;
+}
+
+.app-button--confirm {
+  background-color: var(--color-button-confirm);
+}
+
+.app-button--danger {
+  background-color: var(--color-button-danger);
+}
+
+.app-button--outline {
+  background-color: transparent;
+  color: var(--color-tertiary);
+  border: 1px solid var(--color-tertiary);
+}
+
+.app-button--outline:hover {
+  background-color: color-mix(in srgb, var(--color-tertiary), transparent 88%);
+}
+
+.app-button--outline--danger {
+  background-color: transparent;
+  color: var(--color-button-danger);
+  border: 1px solid var(--color-button-danger);
+}
+
+.app-button--outline--danger:hover {
+  background-color: color-mix(in srgb, var(--color-button-danger), transparent 88%);
+}
