@@ -12,6 +12,12 @@
   const networkModel = ref('scale_free')
   const rewiringProbability = ref(0.01)
 
+  const fileInput = ref(null)
+
+  const triggerFileInput = () => {
+    fileInput.value.click()
+  }
+
   const complexNetworkStore = useComplexNetworkStore()
 
 
@@ -67,17 +73,42 @@
 <template>
   <main>
     <RouterLink to="/"><h1>VIPNODES</h1></RouterLink>
-    <input type='file' @change='handleFileUpload' accept=".mat"/>
+    <h2>VIPNODES is an online tool for computing centrality measures in undirected, unweighted complex networks.</h2>
+    <h4>Load a .mat file</h4>
+    <input 
+      type='file' 
+      ref="fileInput" 
+      style="display: none" 
+      @change='handleFileUpload' 
+      accept=".mat"
+    />
+
+    <button 
+      class="app-button app-button--confirm upload-button" 
+      @click="selectedFile ? uploadFile() : triggerFileInput()"
+    >
+      <svg v-if="!selectedFile" class="upload-icon" viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M12 3l-5 5h3v6h4V8h3l-5-5zm-7 13v5h14v-5h-2v3H7v-3H5z" />
+      </svg>
+      
+      <span>{{ selectedFile ? 'Send' : 'Upload' }}</span>
+    </button>
+    
+    <p v-if="selectedFile">
+      Selected file: {{ selectedFile.name }}
+      <br>
+      <a href="#" @click.prevent="selectedFile = null"
+       style="font-size: 0.8rem; text-decoration: underline; color: var(--color-tertiary);">
+       Change file
+      </a>
+    </p>
+
+    <h4>or</h4>
+
     <button class="app-button" @click="openRandomNetworkPopup">
       Random network
     </button>
-    <button class="app-button app-button--confirm upload-button" @click='uploadFile' v-if="selectedFile">
-      <svg class="upload-icon" viewBox="0 0 24 24" aria-hidden="true">
-        <path d="M12 3l-5 5h3v6h4V8h3l-5-5zm-7 13v5h14v-5h-2v3H7v-3H5z" />
-      </svg>
-      <span>Upload</span>
-    </button>
-    <p v-if="selectedFile">Selected file: {{ selectedFile.name }}</p>
+
     <p v-if="error" class="error-message">{{ error }}</p>
   </main>
 
@@ -120,7 +151,7 @@
         </label>
       </div>
 
-      <template v-if="networkModel === 'small_world'">
+      <div v-if="networkModel === 'small_world'">
         <label for="option-probability">Rewiring probability</label>
         <input
           id="option-probability"
@@ -131,7 +162,7 @@
           max="1"
           @input="clampProbability"
         />
-      </template>
+      </div>
 
       <div class="popup-actions">
         <button class="app-button app-button--outline--danger" @click="closeRandomNetworkPopup">
@@ -146,16 +177,28 @@
 </template>
 
 <style scoped>
+
   h1 {
     font-size: 96px;
     font-weight: 600;
+  }
+
+  h2 {
+    font-weight: 400;
+  }
+
+  h4 {
+    font-weight: 200;
   }
 
   main {
     display: flex;
     flex-direction: column;
     gap: 0.8rem;
-    align-items: flex-start;
+    align-items: center;
+    text-align: center;
+    width: 100%;
+    margin-top: 20vh;
   }
 
   .upload-button span {
