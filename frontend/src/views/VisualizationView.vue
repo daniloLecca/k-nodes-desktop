@@ -7,7 +7,6 @@
 
 <template>
     <main>
-        <RouterLink to="/"><h1>VIPNODES</h1></RouterLink>
         <h2>{{ complexNetworkStore.fileName }}</h2>
         <p>The network has {{ complexNetworkStore.nnodes }} nodes and {{ complexNetworkStore.edges }} edges. </p>
         <p v-if="complexNetworkStore.selfLoops !== 0">
@@ -19,10 +18,11 @@
 <style scoped>
     main {
         width: 100%;
+        margin-top: 5vh;
     }
 
     h1 {
         font-size: 56px;
         font-weight: 500;
-  }
+    }
 </style>

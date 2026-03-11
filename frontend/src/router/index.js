@@ -2,8 +2,10 @@ import { createRouter, createWebHistory } from 'vue-router'
 import HomeView from '../views/HomeView.vue'
 import AboutView from '../views/AboutView.vue'
 import VisualizationView from '@/views/VisualizationView.vue'
+import AnalysisView from '@/views/AnalysisView.vue'
 
 import { useComplexNetworkStore } from '@/stores/complexNetwork'
+
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -24,12 +26,19 @@ const router = createRouter({
       component: VisualizationView,
       meta: { requiresNetwork: true }
     },
+    {
+      path: '/analysis',
+      name: 'analysis',
+      component: AnalysisView,
+      meta: { requiresNetwork: true }
+    },
   ],
 })
 
 /* --------------------  GUARDIA   -------------------- */
 router.beforeEach(async (to, _from, next) => {
     const complexNetworkStore = useComplexNetworkStore()
+    console.log(complexNetworkStore.token)
 
     if (to.matched.some(r => r.meta.requiresNetwork)) {
 

@@ -3,8 +3,8 @@
 @import url('https://fonts.googleapis.com/css2?family=Instrument+Sans:ital,wght@0,400..700;1,400..700&family=Lexend:wght@100..900&family=Manrope:wght@200..800&display=swap');
 
 :root {
-  --vt-c-white: #ffffff;
-  --vt-c-white-soft: #f8f8f8;
+  --vt-c-white: #f8f8f8;
+  --vt-c-white-soft: #fafafa;
   --vt-c-white-mute: #f2f2f2;
 
   --vt-c-black: #181818;

@@ -184,6 +184,7 @@
   }
 
   h2 {
+    width: 80%;
     font-weight: 400;
   }
 

@@ -1,4 +1,4 @@
-import { ref, computed } from 'vue'
+import { ref } from 'vue'
 import { defineStore } from 'pinia'
 
 export const useComplexNetworkStore = defineStore('complexNetwork', () => {
@@ -12,4 +12,7 @@ export const useComplexNetworkStore = defineStore('complexNetwork', () => {
   const clusters = ref({}) // each element has format like { "cluster_id": size }
 
   return { token, fileName, nnodes, edges, largestEigenvalue, maxAlpha, selfLoops, clusters }
+},
+ {
+  persist: true,
 })
