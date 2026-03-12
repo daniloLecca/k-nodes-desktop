@@ -337,7 +337,7 @@ def get_random_complex_network(request: RandomComplexNetworkRequest):
         "numberOfClusters": len(size_of_clusters.keys())
     }
 
-@app.post("/api/sgclr")
+@app.post("/api/sgcenlr")
 async def get_sgclr(request: LowRankSubgraphCentrality, session: dict = Depends(get_network_session)):
     network = session["network"]
     
@@ -375,7 +375,7 @@ async def get_sgclr(request: LowRankSubgraphCentrality, session: dict = Depends(
 
     return {
         "vip_nodes": vip_nodes.tolist(),
-        "vip_sgc": vip_sgc.tolist(),
+        "vip_sgcen": vip_sgc.tolist(),
         "used_eigenpairs": num_eigs, 
         "candidates_history": [c.tolist() for c in candidates_history]
     }
@@ -469,7 +469,7 @@ async def get_stconvlr(request: LowRankSubgraphCentrality, session: dict = Depen
         "candidates_history": [c.tolist() for c in candidates_history]
     }
 
-@app.post("/api/sgcgauss")
+@app.post("/api/sgcengauss")
 async def get_sgcgauss(request: GaussSubgraphCentrality, session: dict = Depends(get_network_session)):
     network = session["network"]
     leig = session["leig"]
@@ -492,7 +492,7 @@ async def get_sgcgauss(request: GaussSubgraphCentrality, session: dict = Depends
 
     return {
         "vip_nodes": vip_nodes.tolist(), 
-        "vip_sgc": vip_sgc.tolist(), 
+        "vip_sgcen": vip_sgc.tolist(), 
         "convergence": "exceeded max iterations number" if info else "satisfied", 
         "matrix vector products": iters.tolist(), 
         "all subgraph centralities": allsgc.tolist()
@@ -561,7 +561,7 @@ async def get_stconvgauss(request: GaussSubgraphCentrality, session: dict = Depe
         "all subgraph centralities": allstconv.tolist()
     }
 
-@app.post("/api/sgchyb")
+@app.post("/api/sgcenhyb")
 async def get_sgchyb(request: HybridSubgraphCentrality, session: dict = Depends(get_network_session)):
     network = session["network"]
     leig = session["leig"]
@@ -610,13 +610,13 @@ async def get_sgchyb(request: HybridSubgraphCentrality, session: dict = Depends(
     logger.info(f"vipnodes: {vip_nodes}")
     return {
         "vip_nodes": vip_nodes.tolist(),
-        "vip_sgc": vip_sgc.tolist(),
+        "vip_sgcen": vip_sgc.tolist(),
         "convergence_gauss": "exceeded max iterations number" if info else "satisfied",
         "convergence_lowrank": convergence,
         "matrix_vector_products": iters.tolist(),
         "all_subgraph_centralities": allsgc.tolist(),
         "vip_lowrank": vip_lr.tolist(),
-        "vipsgc_lowrank": vipsgc_lr.tolist(),
+        "vipsgcen_lowrank": vipsgc_lr.tolist(),
         "used_eigenpairs": int(realN_lr),
         "candidates_history": [c.tolist() for c in S_history_lr]
     }

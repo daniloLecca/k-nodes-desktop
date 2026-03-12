@@ -30,6 +30,18 @@ a {
     color: inherit;
 }
 
+.app-link-inline {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+}
+
+.app-link-inline .button-icon {
+  flex: 0 0 auto;
+  display: block;
+}
+
 p {
     font-weight: 200;
   }
@@ -96,3 +108,9 @@ button:focus-visible,
 .app-button--outline--danger:hover {
   background-color: color-mix(in srgb, var(--color-button-danger), transparent 88%);
 }
+
+.button-icon {
+    width: 1rem;
+    height: 1rem;
+    fill: var(--vt-c-white-mute);
+  }

@@ -2,75 +2,122 @@
     import { ref } from 'vue'
     import { useComplexNetworkStore } from '@/stores/complexNetwork';
     import { useComputationStore } from '@/stores/computationStore';
+    import { computeMeasures } from '@/utils/apis';
+    import router from '@/router';
 
     const complexNetworkStore = useComplexNetworkStore()
     const computationStore = useComputationStore()
 
-    const computationMethod = ref("hybrid")
+    const computationMethod = ref("hyb")
     const centralityMeasure = ref("sgcen")
     const matrixFunction = ref("exponent")
+    const spectrumShift = ref(true)
 
+    const numberOfNodes = ref(1)
+    const numberOfIterationsLowRank = ref(Math.ceil(complexNetworkStore.nnodes * 0.1))
+    const numberOfNodesLowRank = ref(Math.ceil(complexNetworkStore.nnodes * 0.1))
+
+    const nodeCommunicability = ref(1)
+    const gaussTolerance = ref(1e-3)
+    const lowRankTolerance = ref(1e-3)
+    
+    const eigenbatchSize = ref(Math.ceil(complexNetworkStore.nnodes * 0.01))
+    const alphaForResolvent = ref(0.0)
+    
+    async function submit () {
+        const computationData = {
+            compMethod: computationMethod.value, 
+            cenIndex: centralityMeasure.value, 
+            matFun: matrixFunction.value, 
+            numNodes: numberOfNodes.value, 
+            numIterLR: numberOfIterationsLowRank.value, 
+            numNodesLR: numberOfNodesLowRank.value, 
+            nodeComm: nodeCommunicability.value, 
+            gaussTol: gaussTolerance.value, 
+            LRTol: lowRankTolerance.value, 
+            eigenSZ: eigenbatchSize.value, 
+            shift: spectrumShift.value,
+            alphaRes: alphaForResolvent.value 
+        }
+        console.log(computationData)
+        await computeMeasures(computationData)
+        router.push('/results')
+    }
 </script>
 
 <template>
     <main>
         <h2>Compute the centrality measures of the complex network. </h2>
         <h4>The network has {{ complexNetworkStore.nnodes }} nodes and {{ complexNetworkStore.edges }} edges. </h4>
-        <form @submit.prevent="submit" class="params-form">
+        <RouterLink to="/results" class="app-link-inline">
+                <svg class="button-icon" viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M19 12H5"></path>
+                    <path d="M12 19l-7-7 7-7"></path>
+                </svg>
+                Last computation
+        </RouterLink>
+        <form @submit.prevent="submit()" class="params-form">
             <label for="numberOfNodes">Number of nodes to identify</label>
-            <input type="number" value="1" step="1" min="1" :max="complexNetworkStore.nnodes" id="numberOfNodes">
+            <input type="number" v-model="numberOfNodes" value="1" step="1" min="1" :max="complexNetworkStore.nnodes" id="numberOfNodes">
 
-            <label for="numberOfIterations">Max number of iterations for low-rank</label>
-            <input type="number" value="100" step="1" min="1" :max="complexNetworkStore.nnodes" id="numberOfIterations">
+            <label for="numberOfIterations" v-if="computationMethod !== 'gauss'">Max number of iterations for low-rank</label>
+            <input type="number" v-model="numberOfIterationsLowRank" value="100" step="1" min="1" :max="complexNetworkStore.nnodes" id="numberOfIterations" v-if="computationMethod !== 'gauss'">
+            
+            <label for="numberNodesLowRank" v-if="computationMethod !== 'gauss'">Number of nodes to filter with low rank</label>
+            <input type="number" v-model="numberOfNodesLowRank" step="1" min="1" :max="complexNetworkStore.nnodes" id="numberNodesLowRank" v-if="computationMethod !== 'gauss'">
             
             <div id="radioButtons">
                 <legend>Choose the matrix function</legend>
-                <input type="radio" name="matrixFunction" id="exponent" value="exponent" checked>
+                <input type="radio" name="matrixFunction" id="exponent" value="exponent" checked v-model="matrixFunction">
                 <label for="exponent">Exponent</label>
-                <input type="radio" name="matrixFunction" id="resolvent" value="resolvent">
+                <input type="radio" name="matrixFunction" id="resolvent" value="resolvent" v-model="matrixFunction">
                 <label for="resolvent">Resolvent</label>
-                <input type="checkbox" name="spectrumShift" id="spectrumShift" checked="">
+                <input type="checkbox" name="spectrumShift" id="spectrumShift" checked v-model="spectrumShift">
                 <label for="spectrumShift">Spectrum shift</label>
             </div>
 
             <div id="dropdownMenus">
                 <label for="algorithm">Computation method</label>
-                <select name="algorithm" id="algorithm">
-                    <option value="hybrid" selected="selected">Hybrid method</option>
+                <select name="algorithm" id="algorithm" v-model="computationMethod">
+                    <option value="hyb" selected="selected">Hybrid method</option>
                     <option value="lr">Low rank approximation</option>
                     <option value="gauss">Gauss quadrature</option>
                 </select>
 
                 <label for="measure">Centrality measure</label>
-                <select name="measure" id="measure">
+                <select name="measure" id="measure" v-model="centralityMeasure">
                     <option value="sgcen" selected="selected">Subgraph centrality</option>
                     <option value="comm">Communicability of node <i>i</i></option>
                     <option value="stconv">Starting convenience</option>
                 </select>
             </div>
 
-            <label for="nodeCommunicability">Communicability of node i</label>
-            <input type="number" value="1" step="1" min="1" :max="complexNetworkStore.nnodes" id="nodeCommunicability">
+            <label for="nodeCommunicability" v-if="centralityMeasure === 'comm'">Communicability of node i</label>
+            <input type="number" v-model="nodeCommunicability" value="1" step="1" min="1" :max="complexNetworkStore.nnodes" id="nodeCommunicability" v-if="centralityMeasure === 'comm'">
 
-            <label for="gaussTolerance">Tolerance for Gauss quadrature</label>
-            <input type="number" value="1e-3" step="1e-15" min="1e-15" max="10" id="gaussTolerance">
+            <label for="gaussTolerance" v-if="computationMethod !== 'lr'">Tolerance for Gauss quadrature</label>
+            <input type="number" v-model="gaussTolerance" value="1e-3" step="1e-15" min="1e-15" max="10" id="gaussTolerance" v-if="computationMethod !== 'lr'">
 
-            <label for="lowRankTolerance">Tolerance for low-rank approximation</label>
-            <input type="number" value="1e-3" step="1e-15" min="1e-15" max="10" id="lowRankTolerance">
+            <label for="lowRankTolerance" v-if="computationMethod !== 'gauss'">Tolerance for low-rank approximation</label>
+            <input type="number" v-model="lowRankTolerance" value="1e-3" step="1e-15" min="1e-15" max="10" id="lowRankTolerance" v-if="computationMethod !== 'gauss'">
             
-            <label for="eigenbatchSize">Eigenbatch size</label>
-            <input type="number" value="20" step="1" min="1" :max="complexNetworkStore.nnodes" id="eigenbatchSize">
+            <label for="eigenbatchSize" v-if="computationMethod !== 'gauss'">Eigenbatch size</label>
+            <input type="number" v-model="eigenbatchSize" step="1" min="1" :max="complexNetworkStore.nnodes" id="eigenbatchSize" v-if="computationMethod !== 'gauss'">
 
-            <label for="alphaForResolvent">Alpha for resolvent must be in (0, {{ complexNetworkStore.maxAlpha }})</label>
-            <input type="number" value="0" step="1e-3" min="1e-3" :max="complexNetworkStore.maxAlpha - 1e-3" id="alphaForResolvent">
+            <label for="alphaForResolvent" v-if="matrixFunction === 'resolvent'">Alpha for resolvent must be in (0, {{ complexNetworkStore.maxAlpha }})</label>
+            <input
+                v-if="matrixFunction === 'resolvent'"
+                type="number"
+                v-model="alphaForResolvent"
+                value="0"
+                step="1e-3"
+                :min="matrixFunction === 'resolvent' ? 1e-3 : undefined"
+                :max="matrixFunction === 'resolvent' ? complexNetworkStore.maxAlpha - 1e-3 : undefined"
+                id="alphaForResolvent"
+            >
             
-            <button>Compute</button>
-            <!-- to add matrix function, spectrum shift toggle 
-                 gauss tolerance, low-rank tolerance, eigenbatch, alpha-->
+            <button type="submit">Compute</button>
 
-            <!-- to add layout option for: 
-                 1. overview/analysis toggle must go under the title if device is mobile
-                 2. comp. method/cen. measure inputs must be stacked if device is mobile-->
         </form>
     </main>
 </template>
@@ -81,14 +128,22 @@
         width: 100%;
         margin-top: 5vh;
         margin-bottom: 5vh;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
     }
 
     h2 {
         font-weight: 400;
+        text-align: center;
+    }
+
+    h4 {
+        text-align: center;
     }
 
     .params-form {
-        width: 50vw;
+        width: min(70vw, 700px);
         background: var(--color-background-soft);
         border: 1px solid var(--color-border);
         border-radius: 1rem;
@@ -98,6 +153,7 @@
         flex-direction: column;
         gap: 0.7rem;
         margin-top: 3.5vh;
+        text-align: left;
     }
 
     .params-form input, .params-form select {
@@ -121,7 +177,15 @@
     #radioButtons {
         display: flex;
         flex-direction: row;
-        gap: 1.5rem;
+        flex-wrap: wrap;
+        align-items: center;
+        column-gap: 0.8rem;
+        row-gap: 0.6rem;
+    }
+
+    #radioButtons legend {
+        width: 100%;
+        margin-bottom: 0.2rem;
     }
 
     #radioButtons input {
@@ -133,9 +197,42 @@
     }
 
     #radioButtons input[type="checkbox"] {
-        margin-left: 10rem;
+        margin-left: 0;
         width: 1.2rem;
         height: 1.2rem;
+    }
+
+    @media (max-width: 900px) {
+        .params-form {
+            width: 100%;
+            max-width: 700px;
+        }
+
+        #radioButtons {
+            display: grid;
+            grid-template-columns: auto 1fr;
+            align-items: center;
+            column-gap: 0.65rem;
+            row-gap: 0.45rem;
+        }
+
+        #radioButtons legend {
+            grid-column: 1 / -1;
+            margin-bottom: 0.35rem;
+        }
+
+        #radioButtons input[type="checkbox"] {
+            margin-top: 0.45rem;
+        }
+
+        #radioButtons label[for="spectrumShift"] {
+            margin-top: 0.45rem;
+        }
+
+        #dropdownMenus {
+            flex-direction: column;
+            gap: 0.7rem;
+        }
     }
 
     button {
@@ -143,6 +240,9 @@
         align-self: center;
     }
 
+    .app-link-inline {
+        margin-top: 3rem;
+    }
 
 
 </style>

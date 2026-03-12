@@ -3,6 +3,7 @@ import HomeView from '../views/HomeView.vue'
 import AboutView from '../views/AboutView.vue'
 import VisualizationView from '@/views/VisualizationView.vue'
 import AnalysisView from '@/views/AnalysisView.vue'
+import ResultsView from '@/views/ResultsView.vue'
 
 import { useComplexNetworkStore } from '@/stores/complexNetwork'
 
@@ -30,6 +31,12 @@ const router = createRouter({
       path: '/analysis',
       name: 'analysis',
       component: AnalysisView,
+      meta: { requiresNetwork: true }
+    },
+    {
+      path: '/results',
+      name: 'results',
+      component: ResultsView,
       meta: { requiresNetwork: true }
     },
   ],

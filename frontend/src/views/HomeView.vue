@@ -87,8 +87,14 @@
       class="app-button app-button--confirm upload-button" 
       @click="selectedFile ? uploadFile() : triggerFileInput()"
     >
-      <svg v-if="!selectedFile" class="upload-icon" viewBox="0 0 24 24" aria-hidden="true">
+      <svg v-if="!selectedFile" class="button-icon" viewBox="0 0 24 24" aria-hidden="true">
         <path d="M12 3l-5 5h3v6h4V8h3l-5-5zm-7 13v5h14v-5h-2v3H7v-3H5z" />
+      </svg>
+
+      <svg v-if="selectedFile" class="button-icon" viewBox="0 0 24 24" aria-hidden="true"
+      stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M22 2L11 13"></path>
+        <path d="M22 2L15 22l-4-9-9-4 20-7z"></path>
       </svg>
       
       <span>{{ selectedFile ? 'Send' : 'Upload' }}</span>
@@ -208,12 +214,6 @@
     font-family: inherit;
   }
 
-  .upload-icon {
-    width: 1rem;
-    height: 1rem;
-    fill: var(--vt-c-white-soft);
-  }
-
   .error-message {
     margin-top: 0.75rem;
     color: #c62828;
@@ -301,5 +301,12 @@
     cursor: not-allowed;
     pointer-events: none;
   }
+
+  @media (max-width: 768px) {
+    h1 {
+      font-size: 64px;
+    }
+  }
+
 
 </style>

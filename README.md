@@ -1,11 +1,11 @@
 
-# Vipnodes
+# VIPNODES
 
 An online tool for seeking the most important nodes of a network through the computation of centrality measures in undirected, unweighted complex networks.
 
 ## Description
 
-This tool offers was created with the intent of making available the tool *VIPNODES*, which was originally developed in **MATLAB**.
+This tool was created with the intent of making available the tool *VIPNODES*, which was originally developed in **MATLAB**.
 
 These are some of the functionalities introduced in this tool:
 
