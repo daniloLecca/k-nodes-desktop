@@ -2,8 +2,11 @@
     import { ref } from 'vue'
     import { useComplexNetworkStore } from '@/stores/complexNetwork';
     import { useComputationStore } from '@/stores/computationStore';
-    import { computeMeasures } from '@/utils/apis';
+    import { computeMeasures, cancelComputeMeasures } from '@/utils/apis';
     import router from '@/router';
+    import nprogress, { trickle } from 'nprogress';
+
+    const TRICKLE_COEFFICIENT = 10
 
     const complexNetworkStore = useComplexNetworkStore()
     const computationStore = useComputationStore()
@@ -23,8 +26,25 @@
     
     const eigenbatchSize = ref(Math.ceil(complexNetworkStore.nnodes * 0.01))
     const alphaForResolvent = ref(0.0)
+
+    const error = ref('')
+    const isComputing = ref(false)
+
+    nprogress.configure({
+        showSpinner: false,
+        minimum: 0.08,
+        trickleSpeed: complexNetworkStore.nnodes / TRICKLE_COEFFICIENT, 
+        trickleRate: 0.02
+    })
+
+    function cancelRequest () {
+        cancelComputeMeasures()
+        nprogress.done()
+    }
     
     async function submit () {
+        if (isComputing.value) return
+
         const computationData = {
             compMethod: computationMethod.value, 
             cenIndex: centralityMeasure.value, 
@@ -40,8 +60,25 @@
             alphaRes: alphaForResolvent.value 
         }
         console.log(computationData)
-        await computeMeasures(computationData)
-        router.push('/results')
+
+        isComputing.value = true
+        error.value = ''
+        nprogress.start()
+        nprogress.set(0.15)
+
+        const result = await computeMeasures(computationData)
+
+        nprogress.done()
+        isComputing.value = false
+
+        if (result.aborted) {
+            return
+        }
+
+        error.value = result.error
+
+        if (error.value === '')
+            router.push('/results')
     }
 </script>
 
@@ -49,6 +86,7 @@
     <main>
         <h2>Compute the centrality measures of the complex network. </h2>
         <h4>The network has {{ complexNetworkStore.nnodes }} nodes and {{ complexNetworkStore.edges }} edges. </h4>
+        <h3 style="color: var(--color-button-danger);"> {{ error }}</h3>
         <RouterLink to="/results" class="app-link-inline">
                 <svg class="button-icon" viewBox="0 0 24 24" aria-hidden="true">
                     <path d="M19 12H5"></path>
@@ -112,13 +150,26 @@
                 value="0"
                 step="1e-3"
                 :min="matrixFunction === 'resolvent' ? 1e-3 : undefined"
-                :max="matrixFunction === 'resolvent' ? complexNetworkStore.maxAlpha - 1e-3 : undefined"
+                :max="matrixFunction === 'resolvent' ? complexNetworkStore.maxAlpha - 1e-15 : undefined"
                 id="alphaForResolvent"
             >
             
             <button type="submit">Compute</button>
 
         </form>
+
+            <div v-if="isComputing" class="popup-overlay">
+                <div class="popup-modal" id="popup-modal" role="dialog" aria-modal="true" aria-labelledby="compute-loading-title">
+                    <h3 id="compute-loading-title">Computation in progress</h3>
+                    <p>Please wait while the server computes your measures.</p>
+
+                    <div class="popup-actions">
+                        <button class="app-button app-button--outline--danger" type="button" @click="cancelRequest">
+                            Cancel
+                        </button>
+                    </div>
+                </div>
+            </div>
     </main>
 </template>
 
@@ -242,6 +293,39 @@
 
     .app-link-inline {
         margin-top: 3rem;
+    }
+
+    .popup-overlay {
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.55);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 1000;
+        padding: 1rem;
+    }
+
+    .popup-modal {
+        width: min(92vw, 440px);
+        background: var(--color-background-soft);
+        border: 1px solid var(--color-border);
+        border-radius: 1rem;
+        box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+        padding: 1.2rem;
+        display: flex;
+        flex-direction: column;
+        gap: 0.7rem;
+    }
+
+    .popup-modal h3 {
+        font-weight: 600;
+    }
+
+    .popup-actions {
+        margin-top: 0.2rem;
+        display: flex;
+        justify-content: flex-end;
     }
 
 

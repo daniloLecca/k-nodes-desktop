@@ -6,6 +6,7 @@ import AnalysisView from '@/views/AnalysisView.vue'
 import ResultsView from '@/views/ResultsView.vue'
 
 import { useComplexNetworkStore } from '@/stores/complexNetwork'
+import nprogress from 'nprogress'
 
 
 const router = createRouter({
@@ -44,6 +45,7 @@ const router = createRouter({
 
 /* --------------------  GUARDIA   -------------------- */
 router.beforeEach(async (to, _from, next) => {
+    // nprogress.start() -> if loading bar during page navigation is needed 
     const complexNetworkStore = useComplexNetworkStore()
     console.log(complexNetworkStore.token)
 
@@ -58,5 +60,11 @@ router.beforeEach(async (to, _from, next) => {
         next()
     }
 })
+
+/* -> if loading bar during page navigation is needed
+router.afterEach(() => {
+  nprogress.done()
+})
+  */
 
 export default router

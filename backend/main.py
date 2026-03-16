@@ -370,7 +370,7 @@ async def get_sgclr(request: LowRankSubgraphCentrality, session: dict = Depends(
     except PrimmeError: 
         return JSONResponse(
             status_code=400, 
-            content={"error": "maximum number of iterations or matvecs reached, try decreasing batch size."}
+            content={"error": "maximum number of iterations or matvecs reached, try decreasing batch size or incrementing maximum iterations number."}
     )
 
     return {
@@ -415,7 +415,7 @@ async def get_commlr(request: LowRankCommunicability, session: dict = Depends(ge
     except PrimmeError: 
         return JSONResponse(
             status_code=400, 
-            content={"error": "maximum number of iterations or matvecs reached, try decreasing batch size."}
+            content={"error": "maximum number of iterations or matvecs reached, try decreasing batch size or incrementing maximum iterations number."}
     )
 
     return {
@@ -459,7 +459,7 @@ async def get_stconvlr(request: LowRankSubgraphCentrality, session: dict = Depen
     except PrimmeError: 
         return JSONResponse(
             status_code=400, 
-            content={"error": "maximum number of iterations or matvecs reached, try decreasing batch size."}
+            content={"error": "maximum number of iterations or matvecs reached, try decreasing batch size or incrementing maximum iterations number."}
     )
 
     return {
@@ -601,10 +601,11 @@ async def get_sgchyb(request: HybridSubgraphCentrality, session: dict = Depends(
     logger.info(f"Starting sgchyb computation with {network.shape[0]} nodes, fun={request.fun_name}, nnodes={request.nnodes}")
     try: 
         vip_nodes, vip_sgc, info, iters, allsgc, vip_lr, vipsgc_lr, realN_lr, S_history_lr, convergence = sgcenhyb(network, request.fun_name or "exp", request.nnodes or 1, options)
-    except PrimmeError: 
+    except PrimmeError as e: 
+        logger.info(str(e))
         return JSONResponse(
             status_code=400, 
-            content={"error": "maximum number of iterations or matvecs reached, try decreasing batch size."}
+            content={"error": "maximum number of iterations or matvecs reached, try decreasing batch size or incrementing maximum iterations number."}
     )
 
     logger.info(f"vipnodes: {vip_nodes}")
@@ -663,7 +664,7 @@ async def get_commhyb(request: HybridCommunicability, session: dict = Depends(ge
     except PrimmeError: 
         return JSONResponse(
             status_code=400, 
-            content={"error": "maximum number of iterations or matvecs reached, try decreasing batch size."}
+            content={"error": "maximum number of iterations or matvecs reached, try decreasing batch size or incrementing maximum iterations number."}
         )
 
     return {
@@ -722,7 +723,7 @@ async def get_stconvhyb(request: HybridSubgraphCentrality, session: dict = Depen
     except PrimmeError: 
         return JSONResponse(
             status_code=400, 
-            content={"error": "maximum number of iterations or matvecs reached, try decreasing batch size."}
+            content={"error": "maximum number of iterations or matvecs reached, try decreasing batch size or incrementing maximum iterations number."}
     )
 
     return {

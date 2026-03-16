@@ -2,6 +2,7 @@
   import { ref, computed } from 'vue'
   import { useComplexNetworkStore } from '@/stores/complexNetwork'
   import router from '@/router/index'
+  import nprogress from 'nprogress'
   import { sendFile, generateRandomNetwork } from '@/utils/apis'
 
   const selectedFile = ref(null)
@@ -61,8 +62,10 @@
       k: randomEdges.value,
       model: networkModel.value
     }
-
+    
+    nprogress.start()
     error.value = await generateRandomNetwork(formData, rewiringProbability.value)
+    nprogress.done()
     closeRandomNetworkPopup()
   }
 

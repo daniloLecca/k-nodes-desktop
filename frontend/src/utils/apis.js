@@ -2,6 +2,8 @@ import { useComplexNetworkStore } from "@/stores/complexNetwork";
 import { useComputationStore } from "@/stores/computationStore";
 import router from "@/router";
 
+let computeMeasuresController = null
+
 async function sendFile (uploadedFile) {
     const complexNetworkStore = useComplexNetworkStore()
     let error = ''
@@ -109,6 +111,11 @@ async function sendFile (uploadedFile) {
     const complexNetworkStore = useComplexNetworkStore()
     const computationStore = useComputationStore()
 
+    if (computeMeasuresController) {
+      computeMeasuresController.abort()
+    }
+    computeMeasuresController = new AbortController()
+
     const route = `/api/${computationData["cenIndex"]}${computationData.compMethod}`
     console.log(route)
 
@@ -134,19 +141,20 @@ async function sendFile (uploadedFile) {
           "Content-Type": "application/json", 
           "X-Network-token": complexNetworkStore.token
         },
-        body: JSON.stringify(requestBody)
+        body: JSON.stringify(requestBody), 
+        signal: computeMeasuresController.signal
       })
 
       const payload = await response.json().catch(() => ({}));
 
       if (response.status === 400) {
         error = payload?.error || payload?.detail || 'request not valid (400).'
-        return error
+        return { error, aborted: false }
       }
 
       if (!response.ok) {
         error = payload?.error || payload?.detail || `server error (${response.status}).`
-        return error
+        return { error, aborted: false }
       }
 
       const result = payload;
@@ -158,10 +166,23 @@ async function sendFile (uploadedFile) {
 
 
     } catch (err) {
+      if (err?.name === 'AbortError') {
+        return { error: '', aborted: true }
+      }
       console.log(err)
+      error = 'network error, check your Internet connection and retry.'
+      return { error, aborted: false }
+    } finally {
+      computeMeasuresController = null
     }
 
-    return error
+    return { error, aborted: false }
   }
 
-export {sendFile, generateRandomNetwork, computeMeasures}
+function cancelComputeMeasures() {
+  if (computeMeasuresController) {
+    computeMeasuresController.abort()
+  }
+}
+
+export {sendFile, generateRandomNetwork, computeMeasures, cancelComputeMeasures}

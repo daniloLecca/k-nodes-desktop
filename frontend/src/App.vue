@@ -70,7 +70,7 @@ const route = useRoute();
   align-items: center;
   justify-content: space-between;
   padding: 0.5rem 1rem;
-  background-color: var(--color-background); /* Modifica con il colore del tuo tema */
+  background-color: var(--color-background); 
   border-bottom: 1px solid #eaeaea; 
 }
 
@@ -81,6 +81,7 @@ const route = useRoute();
 .nav-left {
   display: flex;
   justify-content: flex-start;
+  cursor: pointer;
 }
 
 .nav-center {
@@ -94,7 +95,7 @@ const route = useRoute();
   flex-wrap: wrap;
   justify-content: center;
   gap: 4px;
-  background-color: var(--color-tertiary); /* Sfondo del toggle non attivo */
+  background-color: var(--color-tertiary); 
   border-radius: 30px;
   padding: 4px;
   box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
@@ -112,7 +113,7 @@ const route = useRoute();
 }
 
 .toggle-tab.active {
-  background-color: var(--color-background); /* Sfondo bottone attivo */
+  background-color: var(--color-background); 
   color: var(--color-text);
   box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
 }
