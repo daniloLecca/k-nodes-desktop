@@ -159,8 +159,8 @@ async function sendFile (uploadedFile) {
 
       const result = payload;
 
-      computationStore.vipNodes = result["vip_nodes"]
-      computationStore.vipScores = result["vip_" + computationData["cenIndex"]]
+      computationStore.computationResult = result
+      computationStore.computationData = computationData
 
       console.log(result)
 

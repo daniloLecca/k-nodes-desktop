@@ -2,12 +2,12 @@
 
 #app {
   max-width: 100%;
-  margin: 0 auto; /* <-- Modifica 1: 'auto' calcola automaticamente i margini uguali a destra e sinistra, centrando il blocco */
+  margin: 0 auto; 
   padding: 2rem;
   font-weight: normal;
-  width: 100%; /* <-- Modifica 2: assicura che il contenitore prenda spazio per potersi centrare bene */
-  display: flex; /* <-- Modifica 3: trasforma l'app in un contenitore flex */
-  justify-content: center; /* <-- Modifica 4: centra il contenuto (il tuo HomeView) al suo interno */
+  width: 100%; 
+  display: flex; 
+  justify-content: center; 
 }
 
 body {

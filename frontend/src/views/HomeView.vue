@@ -69,8 +69,6 @@
     closeRandomNetworkPopup()
   }
 
-  // TODO: add loader when waiting for HTTP response
-
 </script>
 
 <template>

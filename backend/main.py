@@ -21,6 +21,7 @@ from lowrank import sgcenlr, commlr, stconvlr
 from hybrid import sgcenhyb, commhyb, stconvhyb
 from primme import PrimmeError
 from secrets import token_urlsafe
+from time import perf_counter
 
 logger = logging.getLogger(__name__) # for printing logs in dev
 logging.basicConfig(level=logging.INFO)
@@ -366,6 +367,7 @@ async def get_sgclr(request: LowRankSubgraphCentrality, session: dict = Depends(
     logger.info(f"Starting sgclr computation with {network.shape[0]} nodes, fun={request.fun_name}, nnodes={request.nnodes}")
 
     try: 
+        t0 = perf_counter()
         vip_nodes, vip_sgc, num_eigs, candidates_history = sgcenlr(network, request.fun_name or "exp", request.nnodes or 1, options)
     except PrimmeError: 
         return JSONResponse(
@@ -375,8 +377,9 @@ async def get_sgclr(request: LowRankSubgraphCentrality, session: dict = Depends(
 
     return {
         "vip_nodes": vip_nodes.tolist(),
-        "vip_sgcen": vip_sgc.tolist(),
+        "vip_scores": vip_sgc.tolist(),
         "used_eigenpairs": num_eigs, 
+        "elapsed_time": perf_counter() - t0,
         "candidates_history": [c.tolist() for c in candidates_history]
     }
 
@@ -411,6 +414,7 @@ async def get_commlr(request: LowRankCommunicability, session: dict = Depends(ge
     logger.info(f"Starting commlr computation with {network.shape[0]} nodes, fun={request.fun_name}, nnodes={request.nnodes}")
 
     try: 
+        t0 = perf_counter()
         vip_nodes, vip_comm, num_eigs, candidates_history = commlr(network, request.i, request.fun_name or "exp", request.nnodes or 1, options)
     except PrimmeError: 
         return JSONResponse(
@@ -420,8 +424,9 @@ async def get_commlr(request: LowRankCommunicability, session: dict = Depends(ge
 
     return {
         "vip_nodes": vip_nodes.tolist(),
-        "vip_comm": vip_comm.tolist(),
+        "vip_scores": vip_comm.tolist(),
         "used_eigenpairs": num_eigs, 
+        "elapsed_time": perf_counter() - t0,
         "candidates_history": [c.tolist() for c in candidates_history]
     }
 
@@ -455,6 +460,7 @@ async def get_stconvlr(request: LowRankSubgraphCentrality, session: dict = Depen
     logger.info(f"Starting sgclr computation with {network.shape[0]} nodes, fun={request.fun_name}, nnodes={request.nnodes}")
     
     try: 
+        t0 = perf_counter()
         vip_nodes, vip_stconv, num_eigs, candidates_history = stconvlr(network, request.fun_name or "exp", request.nnodes or 1, options)
     except PrimmeError: 
         return JSONResponse(
@@ -464,8 +470,9 @@ async def get_stconvlr(request: LowRankSubgraphCentrality, session: dict = Depen
 
     return {
         "vip_nodes": vip_nodes.tolist(),
-        "vip_stconv": vip_stconv.tolist(),
+        "vip_scores": vip_stconv.tolist(),
         "used_eigenpairs": num_eigs, 
+        "elapsed_time": perf_counter() - t0,
         "candidates_history": [c.tolist() for c in candidates_history]
     }
 
@@ -488,12 +495,14 @@ async def get_sgcgauss(request: GaussSubgraphCentrality, session: dict = Depends
         "alpha": request.alpha or 0.0
     }
 
+    t0 = perf_counter()
     vip_nodes, vip_sgc, info, iters, allsgc = sgcengauss(network, request.fun_name or "exp", request.nnodes or 1, options)
 
     return {
         "vip_nodes": vip_nodes.tolist(), 
-        "vip_sgcen": vip_sgc.tolist(), 
-        "convergence": "exceeded max iterations number" if info else "satisfied", 
+        "vip_scores": vip_sgc.tolist(), 
+        "convergence_gauss": "exceeded max iterations number" if info else "satisfied",
+        "elapsed_time": perf_counter() - t0, 
         "matrix vector products": iters.tolist(), 
         "all subgraph centralities": allsgc.tolist()
     }
@@ -516,6 +525,7 @@ async def get_commgauss(request: GaussCommunicability, session: dict = Depends(g
     }
 
     try: 
+        t0 = perf_counter()
         vip_nodes, vip_comm, info, iters, allcomm = commgauss(network, request.i, request.fun_name or "exp", request.nnodes or 1, options)
     except ValueError as e:
         return JSONResponse(
@@ -525,8 +535,9 @@ async def get_commgauss(request: GaussCommunicability, session: dict = Depends(g
 
     return {
         "vip_nodes": vip_nodes.tolist(), 
-        "vip_comm": vip_comm.tolist(), 
-        "convergence": "exceeded max iterations number" if info else "satisfied", 
+        "vip_scores": vip_comm.tolist(), 
+        "convergence_gauss": "exceeded max iterations number" if info else "satisfied", 
+        "elapsed_time": perf_counter() - t0,
         "matrix vector products": iters.tolist(), 
         "all communicatibilites": allcomm.tolist()
     }
@@ -550,13 +561,15 @@ async def get_stconvgauss(request: GaussSubgraphCentrality, session: dict = Depe
         "alpha": request.alpha or 0.0
     }
 
+    t0 = perf_counter()
     vip_nodes, vip_stconv, info, iters, allstconv = stconvgauss(network, request.fun_name or "exp", request.nnodes or 1, options)
 
 
     return {
         "vip_nodes": vip_nodes.tolist(), 
-        "vip_stconv": vip_stconv.tolist(), 
-        "convergence": "exceeded max iterations number" if info else "satisfied", 
+        "vip_scores": vip_stconv.tolist(), 
+        "convergence_gauss": "exceeded max iterations number" if info else "satisfied", 
+        "elapsed_time": perf_counter() - t0,
         "matrix vector products": iters.tolist(), 
         "all subgraph centralities": allstconv.tolist()
     }
@@ -600,6 +613,7 @@ async def get_sgchyb(request: HybridSubgraphCentrality, session: dict = Depends(
 
     logger.info(f"Starting sgchyb computation with {network.shape[0]} nodes, fun={request.fun_name}, nnodes={request.nnodes}")
     try: 
+        t0 = perf_counter()
         vip_nodes, vip_sgc, info, iters, allsgc, vip_lr, vipsgc_lr, realN_lr, S_history_lr, convergence = sgcenhyb(network, request.fun_name or "exp", request.nnodes or 1, options)
     except PrimmeError as e: 
         logger.info(str(e))
@@ -611,11 +625,12 @@ async def get_sgchyb(request: HybridSubgraphCentrality, session: dict = Depends(
     logger.info(f"vipnodes: {vip_nodes}")
     return {
         "vip_nodes": vip_nodes.tolist(),
-        "vip_sgcen": vip_sgc.tolist(),
+        "vip_scores": vip_sgc.tolist(),
         "convergence_gauss": "exceeded max iterations number" if info else "satisfied",
         "convergence_lowrank": convergence,
         "matrix_vector_products": iters.tolist(),
         "all_subgraph_centralities": allsgc.tolist(),
+        "elapsed_time": perf_counter() - t0,
         "vip_lowrank": vip_lr.tolist(),
         "vipsgcen_lowrank": vipsgc_lr.tolist(),
         "used_eigenpairs": int(realN_lr),
@@ -660,6 +675,7 @@ async def get_commhyb(request: HybridCommunicability, session: dict = Depends(ge
     
     logger.info(f"Starting commhyb computation with {network.shape[0]} nodes, fun={request.fun_name}, nnodes={request.nnodes}")
     try: 
+        t0 = perf_counter()
         vip_nodes, vip_comm, info, iters, allcomm, vip_lr_local, vipcomm_lr_local, realN_lr, S_history_lr, convergence = commhyb(network, request.i, request.fun_name or "exp", request.nnodes or 1, options)
     except PrimmeError: 
         return JSONResponse(
@@ -669,9 +685,10 @@ async def get_commhyb(request: HybridCommunicability, session: dict = Depends(ge
 
     return {
         "vip_nodes": vip_nodes.tolist(),
-        "vip_comm": vip_comm.tolist(),
+        "vip_scores": vip_comm.tolist(),
         "convergence_gauss": "exceeded max iterations number" if info else "satisfied",
         "convergence_lowrank": convergence,
+        "elapsed_time": perf_counter() - t0,
         "matrix_vector_products": iters.tolist(),
         "all_communicabilities": allcomm.tolist(),
         "vip_lowrank": vip_lr_local.tolist(),
@@ -719,6 +736,7 @@ async def get_stconvhyb(request: HybridSubgraphCentrality, session: dict = Depen
     logger.info(f"Starting stconvhyb computation with {network.shape[0]} nodes, fun={request.fun_name}, nnodes={request.nnodes}")
 
     try: 
+        t0 = perf_counter()
         vip_nodes, vip_stconv, info, iters, allstconv, vip_lr, vipstconv_lr, realN_lr, S_history_lr, convergence = stconvhyb(network, request.fun_name or "exp", request.nnodes or 1, options)
     except PrimmeError: 
         return JSONResponse(
@@ -728,9 +746,10 @@ async def get_stconvhyb(request: HybridSubgraphCentrality, session: dict = Depen
 
     return {
         "vip_nodes": vip_nodes.tolist(),
-        "vip_stconv": vip_stconv.tolist(),
+        "vip_scores": vip_stconv.tolist(),
         "convergence_gauss": "exceeded max iterations number" if info else "satisfied",
         "convergence_lowrank": convergence,
+        "elapsed_time": perf_counter() - t0,
         "matrix_vector_products": iters.tolist(),
         "all_starting_conveniences": allstconv.tolist(),
         "vip_lowrank": vip_lr.tolist(),

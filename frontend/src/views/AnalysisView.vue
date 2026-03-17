@@ -16,7 +16,7 @@
     const matrixFunction = ref("exponent")
     const spectrumShift = ref(true)
 
-    const numberOfNodes = ref(1)
+    const numberOfNodes = ref(0)
     const numberOfIterationsLowRank = ref(Math.ceil(complexNetworkStore.nnodes * 0.1))
     const numberOfNodesLowRank = ref(Math.ceil(complexNetworkStore.nnodes * 0.1))
 
@@ -96,13 +96,13 @@
         </RouterLink>
         <form @submit.prevent="submit()" class="params-form">
             <label for="numberOfNodes">Number of nodes to identify</label>
-            <input type="number" v-model="numberOfNodes" value="1" step="1" min="1" :max="complexNetworkStore.nnodes" id="numberOfNodes">
+            <input type="number" v-model="numberOfNodes" value="1" step="1" min="0" :max="complexNetworkStore.nnodes" id="numberOfNodes">
 
             <label for="numberOfIterations" v-if="computationMethod !== 'gauss'">Max number of iterations for low-rank</label>
-            <input type="number" v-model="numberOfIterationsLowRank" value="100" step="1" min="1" :max="complexNetworkStore.nnodes" id="numberOfIterations" v-if="computationMethod !== 'gauss'">
+            <input type="number" v-model="numberOfIterationsLowRank" value="100" step="1" min="0" :max="complexNetworkStore.nnodes" id="numberOfIterations" v-if="computationMethod !== 'gauss'">
             
-            <label for="numberNodesLowRank" v-if="computationMethod !== 'gauss'">Number of nodes to filter with low rank</label>
-            <input type="number" v-model="numberOfNodesLowRank" step="1" min="1" :max="complexNetworkStore.nnodes" id="numberNodesLowRank" v-if="computationMethod !== 'gauss'">
+            <label for="numberNodesLowRank" v-if="computationMethod === 'hyb'">Number of nodes to filter with low rank</label>
+            <input type="number" v-model="numberOfNodesLowRank" step="1" min="0" :max="complexNetworkStore.nnodes" id="numberNodesLowRank" v-if="computationMethod === 'hyb'">
             
             <div id="radioButtons">
                 <legend>Choose the matrix function</legend>
@@ -140,7 +140,7 @@
             <input type="number" v-model="lowRankTolerance" value="1e-3" step="1e-15" min="1e-15" max="10" id="lowRankTolerance" v-if="computationMethod !== 'gauss'">
             
             <label for="eigenbatchSize" v-if="computationMethod !== 'gauss'">Eigenbatch size</label>
-            <input type="number" v-model="eigenbatchSize" step="1" min="1" :max="complexNetworkStore.nnodes" id="eigenbatchSize" v-if="computationMethod !== 'gauss'">
+            <input type="number" v-model="eigenbatchSize" step="1" min="0" :max="complexNetworkStore.nnodes" id="eigenbatchSize" v-if="computationMethod !== 'gauss'">
 
             <label for="alphaForResolvent" v-if="matrixFunction === 'resolvent'">Alpha for resolvent must be in (0, {{ complexNetworkStore.maxAlpha }})</label>
             <input
