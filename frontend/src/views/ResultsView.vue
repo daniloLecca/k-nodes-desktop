@@ -1,6 +1,7 @@
 <script setup>
     import { ref } from 'vue';
     import { useComputationStore } from '@/stores/computationStore';
+    import InfoSection from '@/components/InfoSection.vue';
 
     const computationStore = useComputationStore()
     const lowRankConvergence = ref('')
@@ -9,7 +10,7 @@
     if (computationStore.computationData.compMethod === 'lr') {
         if (computationStore.computationResult.vip_nodes.length === computationStore.computationData.numNodes) {
             lowRankConvergence.value = "Strong convergence"
-        } else if (computationStore.computationResult.vip_nodes.length >= computationStore.computationData.numNodes + 100) {
+        } else if (computationStore.computationResult.vip_nodes.length > computationStore.computationData.numNodes + 100) {
             lowRankConvergence.value = "No convergence"
         } else {
             lowRankConvergence.value = "Weak convergence"
@@ -26,6 +27,8 @@
         }
     }
 
+    console.log(lowRankConvergence.value)
+
 </script>
 
 <template>
@@ -33,8 +36,8 @@
         <header>
         <h2 v-if="computationStore.computationData.compMethod !== 'gauss'">
             {{ lowRankConvergence }} test was satisfied for low rank
-            <p v-if="computationStore.computationResult.convergence_lowrank === 'weak convergence'">
-                {{ additionalNodes }} additional nodes have been added.
+            <p v-if="lowRankConvergence === 'Weak convergence'">
+                {{ additionalNodes }} additional nodes have been added. <br>
             </p>
         </h2>
         <h2 v-else>The VIP nodes have been identified successfully!</h2>
@@ -58,7 +61,7 @@
         <div class="results-table-column">
             <h4>VIP nodes: </h4>
             <ul>
-                <li v-for="node in computationStore.computationResult.vip_nodes"> Node: {{ node }} </li>
+                <li v-for="node in computationStore.computationResult.vip_nodes"> Node: {{ node + 1 }} </li>
             </ul>
         </div>
 
@@ -70,6 +73,7 @@
         </div>
 
     </main>
+    <InfoSection class="info-section" :title="'Scatterplot of the adjacency matrix'" :description="'Each blue dot represent an edge'" :viz="'scatterplot'"></InfoSection>
     </div>
     <footer style="width: max-content; height: 30vh;"></footer>
     
@@ -94,7 +98,7 @@
     }
 
     section {
-        border: 1px solid var(--color-text);
+        border: 1px solid var(--color-border);
         border-radius: 1rem;
         margin: 1vh 0;
         padding: 1.2rem;
@@ -122,6 +126,11 @@
 
     .results-table-column h4 {
         text-align: center;
+    }
+
+    .info-section {
+        width: 100%;
+        align-self: flex-start;
     }
 
     @media (max-width: 900px) {

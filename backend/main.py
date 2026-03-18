@@ -10,6 +10,8 @@ from scipy import sparse
 from scipy.sparse import csc_matrix
 from scipy.sparse.linalg import eigsh
 from fastapi import FastAPI, File, UploadFile, Request, Header, Depends, HTTPException
+from fastapi.responses import StreamingResponse
+import matplotlib.pyplot as plt
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import Response
@@ -57,6 +59,33 @@ redis_client = redis.from_url(os.getenv("REDIS_URL", "redis://localhost:6379/0")
 
 # session expires in 2 hours
 SESSION_EXPIRE_TIME = 7200
+
+
+def serialize_candidates_history(candidates_history):
+    """
+    Serialize candidates history to JSON-compatible data.
+
+    Supported format:
+    - tuple(nodes, lower_bounds, upper_bounds, eigenvalue)
+    """
+    serialized = []
+
+    for entry in candidates_history:
+        if isinstance(entry, tuple) and len(entry) == 4:
+            candidate_nodes, lower_bounds, upper_bounds, eigenvalue = entry
+            serialized.append({
+                "candidate_nodes": np.asarray(candidate_nodes).tolist(),
+                "lower_bounds": np.asarray(lower_bounds).tolist(),
+                "upper_bounds": np.asarray(upper_bounds).tolist(),
+                "eigenvalue": float(eigenvalue),
+            })
+        else:
+            # Backward compatibility with the old structure.
+            serialized.append({
+                "candidate_nodes": np.asarray(entry).tolist(),
+            })
+
+    return serialized
 
 
 def get_network_session(x_network_token: str = Header(...)) -> csc_matrix:
@@ -338,6 +367,22 @@ def get_random_complex_network(request: RandomComplexNetworkRequest):
         "numberOfClusters": len(size_of_clusters.keys())
     }
 
+@app.post("/api/plot")
+async def get_plot(session: dict = Depends(get_network_session)):
+    network = session["network"]
+    plt.figure()
+    plt.spy(network, precision=0.01, markersize=0.5)
+    plt.title("Scatterplot of the adjacency matrix")
+
+    # save in the buffer
+    buf = io.BytesIO()
+    plt.savefig(buf, format="png")
+    plt.close()
+    buf.seek(0)
+
+    return StreamingResponse(buf, media_type="image/png")
+
+
 @app.post("/api/sgcenlr")
 async def get_sgclr(request: LowRankSubgraphCentrality, session: dict = Depends(get_network_session)):
     network = session["network"]
@@ -380,7 +425,7 @@ async def get_sgclr(request: LowRankSubgraphCentrality, session: dict = Depends(
         "vip_scores": vip_sgc.tolist(),
         "used_eigenpairs": num_eigs, 
         "elapsed_time": perf_counter() - t0,
-        "candidates_history": [c.tolist() for c in candidates_history]
+        "candidates_history": serialize_candidates_history(candidates_history)
     }
 
 
@@ -427,7 +472,7 @@ async def get_commlr(request: LowRankCommunicability, session: dict = Depends(ge
         "vip_scores": vip_comm.tolist(),
         "used_eigenpairs": num_eigs, 
         "elapsed_time": perf_counter() - t0,
-        "candidates_history": [c.tolist() for c in candidates_history]
+        "candidates_history": serialize_candidates_history(candidates_history)
     }
 
 @app.post("/api/stconvlr")
@@ -473,7 +518,7 @@ async def get_stconvlr(request: LowRankSubgraphCentrality, session: dict = Depen
         "vip_scores": vip_stconv.tolist(),
         "used_eigenpairs": num_eigs, 
         "elapsed_time": perf_counter() - t0,
-        "candidates_history": [c.tolist() for c in candidates_history]
+        "candidates_history": serialize_candidates_history(candidates_history)
     }
 
 @app.post("/api/sgcengauss")
@@ -634,7 +679,7 @@ async def get_sgchyb(request: HybridSubgraphCentrality, session: dict = Depends(
         "vip_lowrank": vip_lr.tolist(),
         "vipsgcen_lowrank": vipsgc_lr.tolist(),
         "used_eigenpairs": int(realN_lr),
-        "candidates_history": [c.tolist() for c in S_history_lr]
+        "candidates_history": serialize_candidates_history(S_history_lr)
     }
 
 @app.post("/api/commhyb")
@@ -694,7 +739,7 @@ async def get_commhyb(request: HybridCommunicability, session: dict = Depends(ge
         "vip_lowrank": vip_lr_local.tolist(),
         "vipcomm_lowrank": vipcomm_lr_local.tolist(),
         "used_eigenpairs": int(realN_lr),
-        "candidates_history": [c.tolist() for c in S_history_lr]
+        "candidates_history": serialize_candidates_history(S_history_lr)
     }
 
 @app.post("/api/stconvhyb")
@@ -755,5 +800,5 @@ async def get_stconvhyb(request: HybridSubgraphCentrality, session: dict = Depen
         "vip_lowrank": vip_lr.tolist(),
         "vipstconv_lowrank": vipstconv_lr.tolist(),
         "used_eigenpairs": int(realN_lr),
-        "candidates_history": [c.tolist() for c in S_history_lr]
+        "candidates_history": serialize_candidates_history(S_history_lr)
     }

@@ -41,8 +41,9 @@ def sgcenlr(A: csc_matrix,
         number of used eigenpairs
 
     S_history : list
-        history of the candidate nodes for each iteration
-        [[i_1, i_2, ..., i_m, i_{m + 1}..., i_n]] -> [[i_1, i_2, ..., i_m, i_{m + 1}..., i_n], [i_1, i_2, ..., i_m, i_{m + 1}]]
+        history of the candidate nodes for each iteration.
+        Each element is a tuple:
+        (candidate_nodes, candidate_lower_bounds, candidate_upper_bounds, eigenvalue_used)
     """
     if opts is None:
         opts = {}
@@ -185,7 +186,7 @@ def sgcenlr(A: csc_matrix,
         logger.info(Ls)
         
         if lr_return_S:
-            S_history.append(lis)
+            S_history.append((lis, L[lis], U[lis], lam[N]))
             
         # exit condition check 
         flag = (len(lis) > nnodes) and ((f_lam / n) > (lr_approximation_tol * Lmax))
@@ -260,7 +261,9 @@ def commlr(A: csc_matrix,
         number of used eigenpairs
 
     S_history : list
-        history of the candidate nodes for each iteration (mapped to ORIGINAL network indices)
+        history of the candidate nodes for each iteration.
+        Each element is a tuple:
+        (candidate_nodes_original, candidate_lower_bounds, candidate_upper_bounds, eigenvalue_used)
     """
 
     if i < 0 or i >= A.shape[0]:
@@ -411,7 +414,7 @@ def commlr(A: csc_matrix,
         lis_local = np.where(U >= Fmax)[0]
         
         if lr_return_S:
-            S_history_local.append(lis_local)
+            S_history_local.append((lis_local, L[lis_local], U[lis_local], lam[N]))
             
         flag = (len(lis_local) > nnodes) and ((np.abs(np.mean(contr))) > (lr_approximation_tol * Fmax))
         
@@ -445,7 +448,10 @@ def commlr(A: csc_matrix,
 
     # mapping to original matrix
     vip_original = original_indices[vip_local]
-    S_history_original = [original_indices[lis] for lis in S_history_local] if lr_return_S else []
+    S_history_original = [
+        (original_indices[candidate_nodes], candidate_lower_bounds, candidate_upper_bounds, eigenvalue_used)
+        for candidate_nodes, candidate_lower_bounds, candidate_upper_bounds, eigenvalue_used in S_history_local
+    ] if lr_return_S else []
     # ------------------------------------------------------
 
     return vip_original, vipsgc, realN, S_history_original
@@ -483,8 +489,9 @@ def stconvlr(A: csc_matrix,
         number of used eigenpairs
 
     S_history : list
-        history of the candidate nodes for each iteration
-        [[i_1, i_2, ..., i_m, i_{m + 1}..., i_n]] -> [[i_1, i_2, ..., i_m, i_{m + 1}..., i_n], [i_1, i_2, ..., i_m, i_{m + 1}]]
+        history of the candidate nodes for each iteration.
+        Each element is a tuple:
+        (candidate_nodes, candidate_lower_bounds, candidate_upper_bounds, eigenvalue_used)
     """
     
 
@@ -634,7 +641,7 @@ def stconvlr(A: csc_matrix,
         lis = np.where(U >= Fmax)[0]
         
         if lr_return_S:
-            S_history.append(lis)
+            S_history.append((lis, L[lis], U[lis], lam[N]))
             
         # exit condition check 
         flag = (len(lis) > nnodes) and ((np.abs(np.mean(contr))) > (lr_approximation_tol * Fmax))

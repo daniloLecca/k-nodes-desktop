@@ -52,7 +52,7 @@
             numNodes: numberOfNodes.value, 
             numIterLR: numberOfIterationsLowRank.value, 
             numNodesLR: numberOfNodesLowRank.value, 
-            nodeComm: nodeCommunicability.value, 
+            nodeComm: nodeCommunicability.value - 1, // fix because Python arrays are zero based 
             gaussTol: gaussTolerance.value, 
             LRTol: lowRankTolerance.value, 
             eigenSZ: eigenbatchSize.value, 
@@ -134,10 +134,10 @@
             <input type="number" v-model="nodeCommunicability" value="1" step="1" min="1" :max="complexNetworkStore.nnodes" id="nodeCommunicability" v-if="centralityMeasure === 'comm'">
 
             <label for="gaussTolerance" v-if="computationMethod !== 'lr'">Tolerance for Gauss quadrature</label>
-            <input type="number" v-model="gaussTolerance" value="1e-3" step="1e-15" min="1e-15" max="10" id="gaussTolerance" v-if="computationMethod !== 'lr'">
+            <input type="number" v-model="gaussTolerance" value="1e-3" step="1e-15" min="0" max="10" id="gaussTolerance" v-if="computationMethod !== 'lr'">
 
             <label for="lowRankTolerance" v-if="computationMethod !== 'gauss'">Tolerance for low-rank approximation</label>
-            <input type="number" v-model="lowRankTolerance" value="1e-3" step="1e-15" min="1e-15" max="10" id="lowRankTolerance" v-if="computationMethod !== 'gauss'">
+            <input type="number" v-model="lowRankTolerance" value="1e-3" step="1e-15" min="0" max="10" id="lowRankTolerance" v-if="computationMethod !== 'gauss'">
             
             <label for="eigenbatchSize" v-if="computationMethod !== 'gauss'">Eigenbatch size</label>
             <input type="number" v-model="eigenbatchSize" step="1" min="0" :max="complexNetworkStore.nnodes" id="eigenbatchSize" v-if="computationMethod !== 'gauss'">
