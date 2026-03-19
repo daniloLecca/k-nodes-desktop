@@ -79,7 +79,7 @@ def sgcenhyb(A: csc_matrix,
 
     if low_rank_size == n:
         low_rank_convergence = "no convergence"
-    elif low_rank_size == nnodes: 
+    elif low_rank_size == opts["lr_nnodes"]: 
         low_rank_convergence = "strong convergence"
     else:
         low_rank_convergence = "weak convergence"
@@ -202,7 +202,7 @@ def commhyb(A: csc_matrix,
     # check low rank convergence
     if low_rank_size == n_sub:
         low_rank_convergence = "no convergence"
-    elif low_rank_size == nnodes: 
+    elif low_rank_size == opts["lr_nnodes"]: 
         low_rank_convergence = "strong convergence"
     else:
         low_rank_convergence = "weak convergence"
@@ -306,7 +306,7 @@ def stconvhyb(A: csc_matrix,
     # check low rank convergence
     if low_rank_size == n:
         low_rank_convergence = "no convergence"
-    elif low_rank_size == nnodes: 
+    elif low_rank_size == opts["lr_nnodes"]: 
         low_rank_convergence = "strong convergence"
     else:
         low_rank_convergence = "weak convergence"

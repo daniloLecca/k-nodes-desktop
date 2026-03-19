@@ -190,6 +190,7 @@ def sgcenlr(A: csc_matrix,
             
         # exit condition check 
         flag = (len(lis) > nnodes) and ((f_lam / n) > (lr_approximation_tol * Lmax))
+        logger.info(f"Flag: {len(lis)} > {nnodes} and {(f_lam / n)} > ({lr_approximation_tol} * {Lmax}) = {lr_approximation_tol * Lmax}")
         
         N += 1
         realN += 1
@@ -417,6 +418,7 @@ def commlr(A: csc_matrix,
             S_history_local.append((lis_local, L[lis_local], U[lis_local], lam[N]))
             
         flag = (len(lis_local) > nnodes) and ((np.abs(np.mean(contr))) > (lr_approximation_tol * Fmax))
+        logger.info(f"Flag: {len(lis_local)} > {nnodes} and {(np.abs(np.mean(contr)))} > {(lr_approximation_tol * Fmax)}")
         
         N += 1
         realN += 1
@@ -645,6 +647,7 @@ def stconvlr(A: csc_matrix,
             
         # exit condition check 
         flag = (len(lis) > nnodes) and ((np.abs(np.mean(contr))) > (lr_approximation_tol * Fmax))
+        logger.info(f"Flag: {len(lis)} > {nnodes} and {(np.abs(np.mean(contr)))} > {(lr_approximation_tol * Fmax)}")
         
         N += 1
         realN += 1

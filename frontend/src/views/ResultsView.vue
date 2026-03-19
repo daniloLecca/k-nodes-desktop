@@ -74,6 +74,7 @@
 
     </main>
     <InfoSection class="info-section" :title="'Scatterplot of the adjacency matrix'" :description="'Each blue dot represent an edge'" :viz="'scatterplot'"></InfoSection>
+    <InfoSection class="info-section" :title="'Used eigenvalues'" :description="'Only used eigenvalues are represented'" :viz="'eigenvalues'"></InfoSection>
     </div>
     <footer style="width: max-content; height: 30vh;"></footer>
     
@@ -131,6 +132,7 @@
     .info-section {
         width: 100%;
         align-self: flex-start;
+        margin-top: 5vh;
     }
 
     @media (max-width: 900px) {
