@@ -74,7 +74,10 @@
 
     </main>
     <InfoSection class="info-section" :title="'Scatterplot of the adjacency matrix'" :description="'Each blue dot represent an edge'" :viz="'scatterplot'"></InfoSection>
-    <InfoSection class="info-section" :title="'Used eigenvalues'" :description="'Only used eigenvalues are represented'" :viz="'eigenvalues'"></InfoSection>
+    <template v-if="computationStore.computationData.compMethod !== 'gauss'">
+        <InfoSection class="info-section" :title="'Used eigenvalues'" :description="'Only used eigenvalues are represented'" :viz="'eigenvalues'"></InfoSection>
+        <InfoSection class="info-section" :title="'History of low rank bounds'" :description="'All the bounds estimated throughout the computation'" :viz="'boundsHistory'"></InfoSection>
+    </template>
     </div>
     <footer style="width: max-content; height: 30vh;"></footer>
     

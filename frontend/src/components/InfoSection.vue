@@ -18,23 +18,30 @@
     let resizeObserver = null 
 
     const usedEigenValues = []
-    for (const [key, value] of Object.entries(computationStore.computationResult.candidates_history)) {
-        usedEigenValues.push({"i": (parseInt(key) + 1).toString(), "eig": value.eigenvalue})
+    const bounds = []
+    
+    // bounds is an array like [{"i": 1, "lowerBounds": [0, 1, 2], "upperBounds": [3, 4, 5]}]
+    if (props.viz !== 'scatterplot') {
+        for (const [key, value] of Object.entries(computationStore.computationResult.candidates_history)) {
+            const iter = parseInt(key) + 1;
+            usedEigenValues.push({"i": iter, "eig": value.eigenvalue})
+            bounds.push({"i": iter, "lowerBounds": value.lower_bounds, "upperBounds": value.upper_bounds})
+        }
+
+        console.log(bounds)
     }
-
-    console.log(usedEigenValues)
-
+    
 
     async function loadPlot() {
-    const res = await fetch("/api/plot", {
-        method: "POST", 
-        headers: {
-            "X-Network-token": complexNetworkStore.token
-        }
-    })
+        const res = await fetch("/api/plot", {
+            method: "POST", 
+            headers: {
+                "X-Network-token": complexNetworkStore.token
+            }
+        })
 
-    const blob = await res.blob()
-    imageUrl.value = URL.createObjectURL(blob)
+        const blob = await res.blob()
+        imageUrl.value = URL.createObjectURL(blob)
     }
 
     async function loadLineChartEigenvalues() {
@@ -48,7 +55,7 @@
 
         const margin = { top: 12, right: 12, bottom: 28, left: 42 }
         const width = Math.max(10, outerWidth - margin.left - margin.right)
-        const height = Math.max(10, outerHeight - margin.top - margin.bottom)
+        const height = Math.max( outerHeight - margin.top - margin.bottom)
 
         const container = d3.select(chartContainer.value)
         container.selectAll("*").remove()
@@ -80,15 +87,174 @@
             .call(d3.axisLeft(y))
 
         svg.selectAll("circle")
-        .data(usedEigenValues)
-        .enter()
-        .append("circle")
-        .attr("cx", d => x(d.i))
-        .attr("cy", d => y(d.eig))
-        .attr("r", 2)
-        .attr("fill", "none")
-        .attr("stroke", "steelblue") .attr("stroke-width", 0.75); 
+            .data(usedEigenValues)
+            .enter()
+            .append("circle")
+            .attr("cx", d => x(d.i))
+            .attr("cy", d => y(d.eig))
+            .attr("r", 2)
+            .attr("fill", "none")
+            .attr("stroke", "steelblue") 
+            .attr("stroke-width", 0.75);  
+    }
+
+    async function loadMultipleLineChartBoundsHistory() {
+        if (!chartContainer.value) {
+            return
+        }
+
+        const measuredWidth = Math.round(chartContainer.value.getBoundingClientRect().width)
+        const outerWidth = measuredWidth > 0 ? measuredWidth : 260
+        const outerHeight = outerWidth
+
+        const margin = { top: 20, right: 20, bottom: 30, left: 40 }
+        const width = Math.max(10, outerWidth - margin.left - margin.right)
+        const height = Math.max( outerHeight - margin.top - margin.bottom)
+
+        const container = d3.select(chartContainer.value)
+        container.selectAll("*").remove()
+
+        // transform the bounds array to get an array of "points", where each point is represented by: 
+        // x (which node), y (the bound), z (upper bound or lower bound)
+        const rawData = [];
+        bounds.forEach(d => {
+            // ensuring that the array of bounds is an array (i.e. forcing 1.42342 to [1.42342])
+            const lbArray = Array.isArray(d.lowerBounds) ? d.lowerBounds : [d.lowerBounds];
+            const ubArray = Array.isArray(d.upperBounds) ? d.upperBounds : [d.upperBounds];
+
+            lbArray.forEach((val, idx) => {
+                if (val !== undefined && val !== null) {
+                    rawData.push({ x: d.i, y: val, z: lbArray.length > 1 ? `Lower Bound ${idx+1}` : 'Lower Bound' });
+                }
+            });
+            ubArray.forEach((val, idx) => {
+                if (val !== undefined && val !== null) {
+                    rawData.push({ x: d.i, y: val, z: ubArray.length > 1 ? `Upper Bound ${idx+1}` : 'Upper Bound' });
+                }
+            });
+        });
+
+        if (rawData.length === 0) return;
+
+
+        const svgElement = container
+            .append("svg")
+            .attr("width", outerWidth)
+            .attr("height", outerHeight)
+            .attr("viewBox", `0 0 ${outerWidth} ${outerHeight}`)
+            .attr("style", "max-width: 100%; height: auto; overflow: visible; font: 10px sans-serif;");
+
+        // rectangle to "catch" the pointer
+        svgElement.append("rect")
+            .attr("width", outerWidth)
+            .attr("height", outerHeight)
+            .attr("fill", "transparent");
+
+        const svg = svgElement
+            .append("g")
+            .attr("transform", `translate(${margin.left},${margin.top})`);
+
+        
+        const x = d3.scaleLinear()
+            .domain(d3.extent(rawData, d => d.x))
+            .range([0, width]);
+
+        const y = d3.scaleLinear()
+            .domain(d3.extent(rawData, d => d.y)).nice()
+            .range([height, 0]);
+
+        
+        svg.append("g")
+            .attr("transform", `translate(0,${height})`)
+            .call(d3.axisBottom(x).ticks(width / 80).tickSizeOuter(0));
+
+        
+        svg.append("g")
+            .call(d3.axisLeft(y))
+            .call(g => g.select(".domain").remove())
+            .call(g => g.selectAll(".tick line").clone()
+                .attr("x2", width)
+                .attr("stroke-opacity", 0.1))
+            .call(g => g.append("text")
+                .attr("x", -margin.left)
+                .attr("y", -10)
+                .attr("fill", "currentColor")
+                .attr("text-anchor", "start")
+                .text("↑ Score"));
+
+        // determine the corresponding position in the axis
+        const points = rawData.map((d) => [x(d.x), y(d.y), d.z]);
+        // each point is mapped with a "group"
+        const groups = d3.rollup(points, v => Object.assign(v, {z: v[0][2]}), d => d[2]);
+
+        // color of the path depending on the theme (light or dark)
+        const getLineColor = (seriesName) => {
+            return seriesName.includes("Lower") 
+                ? "var(--color-tertiary, #5cb0cf)" 
+                : "steelblue";
+        };
+
+        const line = d3.line();
+        const path = svg.append("g")
+            .attr("fill", "none")
+            .attr("stroke-width", 1.5)
+            .attr("stroke-linejoin", "round")
+            .attr("stroke-linecap", "round")
+            .attr("stroke-opacity", 0.2) 
+            .selectAll("path")
+            .data(groups.values())
+            .join("path")
+            .attr("stroke", d => getLineColor(d.z)) 
+            .attr("d", line);
+
+        
+        // "dot" is the tooltip
+        const dot = svg.append("g")
+            .attr("display", "none");
+
+        dot.append("circle")
+            .attr("stroke", "red")
+            .attr("fill", "red")
+            .attr("r", 2.5);
+
+        dot.append("text")
+            .attr("text-anchor", "middle")
+            .attr("fill", "currentColor")
+            .attr("y", -8);
+
+        svgElement
+            .on("pointerenter", pointerentered)
+            .on("pointermove", pointermoved)
+            .on("pointerleave", pointerleft)
+            .on("touchstart", event => event.preventDefault());
+
+        function pointermoved(event) {
+            const [xm, ym] = d3.pointer(event, svg.node());
+            const i = d3.leastIndex(points, ([px, py]) => Math.hypot(px - xm, py - ym));
+            if (i === -1) return;
             
+            const [px, py, k] = points[i];
+            
+            // handling opacity during hover:
+            // each path but the underlined one has 20% opacity, the underlined one has 100%
+            path.attr("stroke-opacity", d => d.z === k ? 1 : 0.2)
+                .filter(d => d.z === k).raise();
+            
+            dot.attr("transform", `translate(${px},${py})`);
+            dot.select("text").text(k);
+        }
+
+        function pointerentered() {
+            // makes sure that opacity is handled individually
+            dot.attr("display", null);
+        }
+
+        function pointerleft() {
+            // when mouse leaves, default opacity is assigned
+            path.attr("stroke-opacity", 0.2)
+                .style("mix-blend-mode", null); 
+            dot.attr("display", "none");
+        }
     }
 
     onMounted(() => {
@@ -100,6 +266,17 @@
             if (chartContainer.value) {
                 resizeObserver = new ResizeObserver(() => {
                     loadLineChartEigenvalues()
+                })
+
+                resizeObserver.observe(chartContainer.value)
+            }
+
+        } else if (props.viz === 'boundsHistory') {
+            loadMultipleLineChartBoundsHistory()
+
+            if (chartContainer.value) {
+                resizeObserver = new ResizeObserver(() => {
+                    loadMultipleLineChartBoundsHistory()
                 })
 
                 resizeObserver.observe(chartContainer.value)
@@ -117,7 +294,7 @@
 <template>
     <main>
         <img v-if="props.viz === 'scatterplot' && imageUrl" :src="imageUrl" class="media-box" />
-        <div v-else-if="props.viz === 'eigenvalues'" ref="chartContainer" class="media-box chart-box"></div>
+        <div v-else-if="props.viz === 'eigenvalues' || props.viz === 'boundsHistory'" ref="chartContainer" class="media-box chart-box"></div>
         <article>
             <h3>{{ title }}</h3>
             <p>{{ description }}</p>
@@ -153,13 +330,14 @@
         display: block;
         flex: 0 0 auto;
         margin: 0;
-        width: clamp(140px, 15vw, 260px);
+        width: clamp(240px, 20vw, 300px);
         max-width: 100%;
     }
 
     img {
         border-radius: 1rem;
         height: auto;
+        width: 100%;
     }
 
     .chart-box {
