@@ -30,7 +30,6 @@
 
         console.log(bounds)
     }
-    
 
     async function loadPlot() {
         const res = await fetch("/api/plot", {
@@ -60,13 +59,23 @@
         const container = d3.select(chartContainer.value)
         container.selectAll("*").remove()
 
-        const svg = container
+        const svgElement = container
             .append("svg")
             .attr("width", outerWidth)
             .attr("height", outerHeight)
-            .attr("viewBox", `0 0 ${outerWidth} ${outerHeight}`)
+            .attr("viewBox", `0 0 ${outerWidth} ${outerHeight}`);
+
+        // Make the full SVG area interactive for pan/zoom gestures.
+        svgElement.append("rect")
+            .attr("width", outerWidth)
+            .attr("height", outerHeight)
+            .attr("fill", "transparent");
+
+        const svg = svgElement
             .append("g")
-            .attr("transform", `translate(${margin.left},${margin.top})`)
+            .attr("transform", `translate(${margin.left},${margin.top})`);
+
+        const plotLayer = svg.append("g");
 
         const x = d3.scaleLinear()
             .domain([0, usedEigenValues.length])
@@ -79,14 +88,14 @@
             .nice()
             .range([height, 0])
 
-        svg.append("g")
+        plotLayer.append("g")
             .attr("transform", `translate(0,${height})`)
             .call(d3.axisBottom(x))
 
-        svg.append("g")
+        plotLayer.append("g")
             .call(d3.axisLeft(y))
 
-        svg.selectAll("circle")
+        plotLayer.selectAll("circle")
             .data(usedEigenValues)
             .enter()
             .append("circle")
@@ -96,6 +105,13 @@
             .attr("fill", "none")
             .attr("stroke", "steelblue") 
             .attr("stroke-width", 0.75);  
+
+        svgElement.call(d3.zoom()
+            .extent([[0, 0], [outerWidth, outerHeight]])
+            .scaleExtent([1, 8])
+            .on("zoom", ({ transform }) => {
+                plotLayer.attr("transform", transform);
+            }));
     }
 
     async function loadMultipleLineChartBoundsHistory() {
@@ -154,6 +170,9 @@
             .append("g")
             .attr("transform", `translate(${margin.left},${margin.top})`);
 
+        const plotLayer = svg.append("g");
+        let currentTransform = d3.zoomIdentity;
+
         
         const x = d3.scaleLinear()
             .domain(d3.extent(rawData, d => d.x))
@@ -164,12 +183,12 @@
             .range([height, 0]);
 
         
-        svg.append("g")
+        plotLayer.append("g")
             .attr("transform", `translate(0,${height})`)
             .call(d3.axisBottom(x).ticks(width / 80).tickSizeOuter(0));
 
         
-        svg.append("g")
+        plotLayer.append("g")
             .call(d3.axisLeft(y))
             .call(g => g.select(".domain").remove())
             .call(g => g.selectAll(".tick line").clone()
@@ -181,6 +200,14 @@
                 .attr("fill", "currentColor")
                 .attr("text-anchor", "start")
                 .text("↑ Score"));
+
+        svgElement.call(d3.zoom()
+            .extent([[0, 0], [outerWidth, outerHeight]])
+            .scaleExtent([1, 8])
+            .on("zoom", ({ transform }) => {
+                currentTransform = transform;
+                plotLayer.attr("transform", transform);
+            }));
 
         // determine the corresponding position in the axis
         const points = rawData.map((d) => [x(d.x), y(d.y), d.z]);
@@ -195,7 +222,7 @@
         };
 
         const line = d3.line();
-        const path = svg.append("g")
+        const path = plotLayer.append("g")
             .attr("fill", "none")
             .attr("stroke-width", 1.5)
             .attr("stroke-linejoin", "round")
@@ -209,7 +236,7 @@
 
         
         // "dot" is the tooltip
-        const dot = svg.append("g")
+        const dot = plotLayer.append("g")
             .attr("display", "none");
 
         dot.append("circle")
@@ -230,17 +257,19 @@
 
         function pointermoved(event) {
             const [xm, ym] = d3.pointer(event, svg.node());
-            const i = d3.leastIndex(points, ([px, py]) => Math.hypot(px - xm, py - ym));
+            const [zx, zy] = currentTransform.invert([xm, ym]);
+            const i = d3.leastIndex(points, ([px, py]) => Math.hypot(px - zx, py - zy));
             if (i === -1) return;
             
             const [px, py, k] = points[i];
+            const [tx, ty] = currentTransform.apply([px, py]);
             
             // handling opacity during hover:
             // each path but the underlined one has 20% opacity, the underlined one has 100%
             path.attr("stroke-opacity", d => d.z === k ? 1 : 0.2)
                 .filter(d => d.z === k).raise();
             
-            dot.attr("transform", `translate(${px},${py})`);
+            dot.attr("transform", `translate(${tx},${ty})`);
             dot.select("text").text(k);
         }
 
@@ -276,12 +305,14 @@
 
             if (chartContainer.value) {
                 resizeObserver = new ResizeObserver(() => {
-                    loadMultipleLineChartBoundsHistory()
+                    clearTimeout(resizeTimeout);
+                    resizeTimeout = setTimeout(() => {
+                        loadMultipleLineChartBoundsHistory();
+                    }, 250);
                 })
-
                 resizeObserver.observe(chartContainer.value)
             }
-        }
+        }   
     })
 
     onBeforeUnmount(() => {
