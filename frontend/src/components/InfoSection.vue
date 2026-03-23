@@ -175,7 +175,7 @@
 
         
         const x = d3.scaleLinear()
-            .domain(d3.extent(rawData, d => d.x))
+            .domain(d3.extent(rawData, d => d.x)).nice()
             .range([0, width]);
 
         const y = d3.scaleLinear()

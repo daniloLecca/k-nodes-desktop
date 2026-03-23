@@ -29,6 +29,32 @@
 
     console.log(lowRankConvergence.value)
 
+    function processComputationDataLabels (d) {
+        console.log(d)
+        let updatedD = {
+            "Computation method": d.compMethod === 'gauss' ? 'Gauss quadrature' : (d.compMethod === 'hyb' ? 'Hybrid method' : 'Low rank approximation'), 
+            "Centrality measure": d.cenIndex === 'comm' ? 'Communicability' : (d.cenIndex === 'sgcen' ? 'Subgraph centrality' : 'Starting convenience'), 
+            "Matrix function": d.matFun === 'exponent' ? 'Exponential' : 'Resolvent', 
+            'Spectrum shift': d.shift ? 'True' : 'False', 
+            'Number of nodes seeked': d.numNodes,
+            'Number of nodes seeked via low rank approximation': d.numNodesLR, 
+            'Max number of iterations for low rank approximation': d.numIterLR, 
+            'Tolerance for low rank approximation': d.LRTol, 
+            'Tolerance for Gauss quadrature': d.gaussTol, 
+            'Eigenbatch size': d.eigenSZ
+        }
+
+        if (d.cenIndex === 'comm') {
+            updatedD["Communicability with node"] = d.nodeComm + 1
+        }
+
+        if (d.matFun === 'resolvent') {
+            updatedD["Alpha for resolvent"] = d.alphaRes
+        }
+
+        return updatedD
+    }
+
 </script>
 
 <template>
@@ -52,7 +78,7 @@
         <section>
             <h3>Computation parameters: </h3>
             <ul>
-                <li v-for="key in Object.keys(computationStore.computationData)">{{ key }}: {{ computationStore.computationData[key] }}</li>
+                <li v-for="key in Object.keys(processComputationDataLabels(computationStore.computationData))">{{ key }}: {{ (processComputationDataLabels(computationStore.computationData))[key] }}</li>
             </ul>
         </section>
     </header>
