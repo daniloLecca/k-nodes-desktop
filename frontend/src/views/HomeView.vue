@@ -39,16 +39,13 @@
     pressedRandomNetworkButton.value = false
   }
 
-  const clampEdges = () => {
-    if (randomEdges.value < 1) randomEdges.value = 2
-    if (randomEdges.value >= randomNodes.value) randomEdges.value = randomNodes.value - 1
-  }
-
   const clampProbability = () => {
     if (rewiringProbability.value > 1) rewiringProbability.value = 0.9999
   }
 
   const popupValid = computed(() => {
+    if (randomNodes.value <= 2) return false
+    if (randomEdges.value <= 1) return false
     if (randomNodes.value <= randomEdges.value) return false
     if (networkModel.value === 'small_world' &&
         (rewiringProbability.value <= 0 || rewiringProbability.value > 1)) return false
@@ -125,26 +122,27 @@
     @click="closeRandomNetworkPopup"
   >
     <div class="popup-modal" @click.stop>
-      <h2>Generate a random network</h2>
+      <h2 style="font-size: 22px;">Generate a random network</h2>
 
       <label for="random-nodes">Number of nodes</label>
       <input
         id="random-nodes"
         v-model.number="randomNodes"
         type="number"
-        min="3"
+        min="0"
       />
+
+      <p v-if="randomNodes <= 2" class="input-error">The network must have at least 3 nodes.</p>
 
       <label for="random-edges">Number of starting edges for each node</label>
       <input
         id="random-edges"
         v-model.number="randomEdges"
         type="number"
-        min="2"
-        :max="randomNodes - 1"
-        @input="clampEdges"
+        min="0"
       />
       <p v-if="randomNodes <= randomEdges" class="input-error">Nodes must be greater than edges.</p>
+      <p v-if="randomEdges <= 1" class="input-error">The network must have at least 2 edges.</p>
 
       <p class="radio-group-title">Network model</p>
       <div class="popup-radio-group">

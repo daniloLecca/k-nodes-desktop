@@ -1,5 +1,5 @@
 <script setup>
-    import { ref } from 'vue'
+    import { ref, computed } from 'vue'
     import { useComplexNetworkStore } from '@/stores/complexNetwork';
     import { useComputationStore } from '@/stores/computationStore';
     import { computeMeasures, cancelComputeMeasures } from '@/utils/apis';
@@ -16,15 +16,15 @@
     const matrixFunction = ref("exponent")
     const spectrumShift = ref(true)
 
-    const numberOfNodes = ref(0)
-    const numberOfIterationsLowRank = ref(Math.ceil(complexNetworkStore.nnodes * 0.1))
-    const numberOfNodesLowRank = ref(Math.ceil(complexNetworkStore.nnodes * 0.1))
+    const numberOfNodes = ref(1)
+    const numberOfIterationsLowRank = ref(complexNetworkStore.nnodes)
+    const numberOfNodesLowRank = ref(1)
 
     const nodeCommunicability = ref(1)
     const gaussTolerance = ref(1e-3)
     const lowRankTolerance = ref(1e-3)
     
-    const eigenbatchSize = ref(Math.ceil(complexNetworkStore.nnodes * 0.01))
+    const eigenbatchSize = ref(complexNetworkStore.nnodes > 20 ? 20 : complexNetworkStore.nnodes)
     const alphaForResolvent = ref(0.0)
 
     const error = ref('')
@@ -80,6 +80,19 @@
         if (error.value === '')
             router.push('/results')
     }
+
+    const parametersValid = computed(() => {
+        if (numberOfNodes.value > complexNetworkStore.nnodes || numberOfNodes.value <= 0) return false
+        if (numberOfIterationsLowRank.value > complexNetworkStore.nnodes || numberOfIterationsLowRank.value <= 0) return false
+        if (numberOfNodesLowRank.value > numberOfNodes.value || numberOfNodesLowRank.value <= 0) return false
+        if (eigenbatchSize.value > complexNetworkStore.nnodes || eigenbatchSize.value <= 0) return false
+        if (nodeCommunicability.value > complexNetworkStore.nnodes || nodeCommunicability.value <= 0) return false
+        if (matrixFunction.value === 'resolvent' && 
+            (alphaForResolvent.value === 0 ||
+             alphaForResolvent.value >= complexNetworkStore.maxAlpha)) return false
+        return true
+    })
+
 </script>
 
 <template>
@@ -96,14 +109,17 @@
         </RouterLink>
         <form @submit.prevent="submit()" class="params-form">
             <label for="numberOfNodes">Number of nodes to identify</label>
-            <input type="number" v-model="numberOfNodes" value="1" step="1" min="0" :max="complexNetworkStore.nnodes" id="numberOfNodes">
+            <input type="number" v-model="numberOfNodes" step="1" min="0" id="numberOfNodes">
+            <p v-if="numberOfNodes > complexNetworkStore.nnodes" class="input-error">The number of nodes to identify must be smaller than the number of nodes</p>
 
             <label for="numberOfIterations" v-if="computationMethod !== 'gauss'">Max number of iterations for low-rank</label>
-            <input type="number" v-model="numberOfIterationsLowRank" value="100" step="1" min="0" :max="complexNetworkStore.nnodes" id="numberOfIterations" v-if="computationMethod !== 'gauss'">
+            <input type="number" v-model="numberOfIterationsLowRank" step="1" min="0" id="numberOfIterations" v-if="computationMethod !== 'gauss'">
+            <p v-if="numberOfIterationsLowRank > complexNetworkStore.nnodes" class="input-error">Max number of iterations for low rank must be smaller than the number of nodes</p>
             
             <label for="numberNodesLowRank" v-if="computationMethod === 'hyb'">Number of nodes to filter with low rank</label>
-            <input type="number" v-model="numberOfNodesLowRank" step="1" min="0" :max="complexNetworkStore.nnodes" id="numberNodesLowRank" v-if="computationMethod === 'hyb'">
-            
+            <input type="number" v-model="numberOfNodesLowRank" step="1" min="0" id="numberNodesLowRank" v-if="computationMethod === 'hyb'">
+            <p v-if="numberOfNodesLowRank > numberOfNodes" class="input-error">Number of nodes for low rank must be equal or smaller than the number of nodes to identify</p>
+
             <div id="radioButtons">
                 <legend>Choose the matrix function</legend>
                 <input type="radio" name="matrixFunction" id="exponent" value="exponent" checked v-model="matrixFunction">
@@ -131,7 +147,8 @@
             </div>
 
             <label for="nodeCommunicability" v-if="centralityMeasure === 'comm'">Communicability of node i</label>
-            <input type="number" v-model="nodeCommunicability" value="1" step="1" min="1" :max="complexNetworkStore.nnodes" id="nodeCommunicability" v-if="centralityMeasure === 'comm'">
+            <input type="number" v-model="nodeCommunicability" step="1" min="1" id="nodeCommunicability" v-if="centralityMeasure === 'comm'">
+            <p v-if="nodeCommunicability > complexNetworkStore.nnodes" class="input-error">The considered node musth be in [1, {{ complexNetworkStore.nnodes }}]</p>
 
             <label for="gaussTolerance" v-if="computationMethod !== 'lr'">Tolerance for Gauss quadrature</label>
             <input type="number" v-model="gaussTolerance" value="1e-3" step="1e-15" min="0" max="10" id="gaussTolerance" v-if="computationMethod !== 'lr'">
@@ -140,21 +157,22 @@
             <input type="number" v-model="lowRankTolerance" value="1e-3" step="1e-15" min="0" max="10" id="lowRankTolerance" v-if="computationMethod !== 'gauss'">
             
             <label for="eigenbatchSize" v-if="computationMethod !== 'gauss'">Eigenbatch size</label>
-            <input type="number" v-model="eigenbatchSize" step="1" min="0" :max="complexNetworkStore.nnodes" id="eigenbatchSize" v-if="computationMethod !== 'gauss'">
+            <input type="number" v-model="eigenbatchSize" step="1" min="0" id="eigenbatchSize" v-if="computationMethod !== 'gauss'">
+            <p v-if="eigenbatchSize > complexNetworkStore.nnodes" class="input-error">Eigenbatch size must be smaller than the number of nodes</p>
 
             <label for="alphaForResolvent" v-if="matrixFunction === 'resolvent'">Alpha for resolvent must be in (0, {{ complexNetworkStore.maxAlpha }})</label>
             <input
                 v-if="matrixFunction === 'resolvent'"
                 type="number"
                 v-model="alphaForResolvent"
-                value="0"
+                value="0.0"
                 step="1e-3"
-                :min="matrixFunction === 'resolvent' ? 1e-3 : undefined"
-                :max="matrixFunction === 'resolvent' ? complexNetworkStore.maxAlpha - 1e-15 : undefined"
+                min="0"
                 id="alphaForResolvent"
             >
+            <p v-if="matrixFunction === 'resolvent' && (alphaForResolvent >= complexNetworkStore.maxAlpha || alphaForResolvent <= 0)" class="input-error">Alpha must be in the interval specified above</p>
             
-            <button type="submit">Compute</button>
+            <button type="submit" :disabled="!parametersValid">Compute</button>
 
         </form>
 
@@ -291,6 +309,12 @@
         align-self: center;
     }
 
+    button:disabled {
+        opacity: 0.4;
+        cursor: not-allowed;
+        pointer-events: none;
+    }
+
     .app-link-inline {
         margin-top: 3rem;
     }
@@ -326,6 +350,13 @@
         margin-top: 0.2rem;
         display: flex;
         justify-content: flex-end;
+    }
+
+    .input-error {
+        color: var(--color-button-danger);
+        font-size: 0.85rem;
+        font-weight: 500;
+        margin-top: -0.3rem;
     }
 
 
