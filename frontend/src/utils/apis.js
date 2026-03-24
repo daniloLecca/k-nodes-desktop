@@ -185,4 +185,41 @@ function cancelComputeMeasures() {
   }
 }
 
-export {sendFile, generateRandomNetwork, computeMeasures, cancelComputeMeasures}
+// for basic visualization, only needed when doing the setup for Sigma
+async function getEntireNetworkPositions () {
+
+  const complexNetworkStore = useComplexNetworkStore()
+  let error = ''
+
+  try {
+      const response = await fetch('/api/tiny_network_viz', {
+      method: 'POST', 
+      headers: {
+        "Content-Type": "application/json", 
+        "X-Network-token": complexNetworkStore.token
+      },
+    })
+
+    const payload = await response.json().catch(() => ({}));
+
+    if (response.status === 400) {
+      error = payload?.error || payload?.detail || 'request not valid (400).'
+      return error
+    }
+
+    if (!response.ok) {
+      error = payload?.error || payload?.detail || `server error (${response.status}).`
+      return error
+    }
+
+    const result = payload;
+    return result
+
+    } catch (err) {
+      error= 'network error, check your Internet connection and retry.'
+      console.log(err.message)
+    }
+
+}
+
+export {sendFile, generateRandomNetwork, computeMeasures, cancelComputeMeasures, getEntireNetworkPositions}

@@ -21,6 +21,7 @@ from utils import HybridSubgraphCentrality, HybridCommunicability
 from gauss import gauss_exp, gauss_res, sgcengauss, commgauss, stconvgauss
 from lowrank import sgcenlr, commlr, stconvlr
 from hybrid import sgcenhyb, commhyb, stconvhyb
+from layout import entire_network_layout
 from primme import PrimmeError
 from secrets import token_urlsafe
 from time import perf_counter
@@ -802,3 +803,7 @@ async def get_stconvhyb(request: HybridSubgraphCentrality, session: dict = Depen
         "used_eigenpairs": int(realN_lr),
         "candidates_history": serialize_candidates_history(S_history_lr)
     }
+
+@app.post("/api/tiny_network_viz")
+async def get_positions_tiny_network(session: dict = Depends(get_network_session)):
+    return entire_network_layout(network=session["network"])
