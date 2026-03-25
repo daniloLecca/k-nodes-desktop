@@ -136,6 +136,7 @@
     }
 
     h2 {
+        margin-top: 5vh;
         margin-bottom: 2vh;
     }
 
@@ -145,6 +146,13 @@
         flex-direction: row;
         gap: 4rem;
         justify-content: center;
+        background: var(--color-background-soft);
+        border: 1px solid var(--color-border);
+        border-radius: 1rem;
+        box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+        width: 100%;
+        padding: 0.6rem;
+        overflow: hidden;
     }
 
     .results-table-column {
