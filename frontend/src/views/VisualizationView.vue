@@ -2,11 +2,14 @@
     import { ref, onMounted, onUnmounted } from 'vue'
     import { useComplexNetworkStore } from '@/stores/complexNetwork';
     import { usePositionsStore } from '@/stores/positionsStore';
+    import { useComputationStore } from '@/stores/computationStore';
     import { getEntireNetworkPositions } from '@/utils/apis';
     import Sigma from 'sigma';
     import Graph from 'graphology';
+    import nprogress from 'nprogress'
 
     const complexNetworkStore = useComplexNetworkStore()
+    const computationStore = useComputationStore()
     const positions = usePositionsStore()
     const containerRef = ref(null)
     const sigmaInstance = ref(null)
@@ -45,7 +48,11 @@
 
         try {
             // checks if the store is empty, the store is emptied every time the user goes to the home page
-            if (!Object.keys(positions.currentLayer).length) positions.currentLayer = await getEntireNetworkPositions()
+            if (!Object.keys(positions.currentLayer).length) {
+                nprogress.start()
+                positions.currentLayer = await getEntireNetworkPositions()
+                nprogress.done()
+            }
             console.log(positions.currentLayer)
             if (isUnmounted || !container.isConnected) return
 
@@ -89,12 +96,18 @@
             sigmaInstance.value.on("upNode", handleUp);
             sigmaInstance.value.on("upStage", handleUp);
 
+            const vipNodes = Array.isArray(computationStore.computationResult?.vip_nodes)
+                ? computationStore.computationResult.vip_nodes
+                : []
+
             // every time the page is loaded, the rendering gets refreshed
             sigmaInstance.value.setSetting("nodeReducer", (nodeId, data) => {
-                if (nodeId === "1") {
+                if (vipNodes.includes(Number(nodeId))) {
+                    console.log(vipNodes)
                     return {
                         ...data,  
                         color: "orange", 
+                        label: "VIP node: " + String(Number(nodeId) + 1),
                         size: 5
                     };
                 }
@@ -156,7 +169,19 @@
     }
 
     #container {
-        height: clamp(75vh, 77vh, 100vh);      
+        height: 100vh;
+    }
+
+    @media (max-height: 999px) {
+        #container {
+            height: 74vh;   
+        }
+    }
+
+    @media (min-height: 1000px) {
+        #container {
+            height: 81vh;   
+        }
     }
 
     #controls {

@@ -84,7 +84,7 @@
     const parametersValid = computed(() => {
         if (numberOfNodes.value > complexNetworkStore.nnodes || numberOfNodes.value <= 0) return false
         if (numberOfIterationsLowRank.value > complexNetworkStore.nnodes || numberOfIterationsLowRank.value <= 0) return false
-        if (numberOfNodesLowRank.value > numberOfNodes.value || numberOfNodesLowRank.value <= 0) return false
+        if ((numberOfNodesLowRank.value < numberOfNodes.value) && computationMethod.value !== 'gauss' || numberOfNodesLowRank.value <= 0) return false
         if (eigenbatchSize.value > complexNetworkStore.nnodes || eigenbatchSize.value <= 0) return false
         if (nodeCommunicability.value > complexNetworkStore.nnodes || nodeCommunicability.value <= 0) return false
         if (matrixFunction.value === 'resolvent' && 
@@ -118,7 +118,7 @@
             
             <label for="numberNodesLowRank" v-if="computationMethod === 'hyb'">Number of nodes to filter with low rank</label>
             <input type="number" v-model="numberOfNodesLowRank" step="1" min="0" id="numberNodesLowRank" v-if="computationMethod === 'hyb'">
-            <p v-if="numberOfNodesLowRank > numberOfNodes" class="input-error">Number of nodes for low rank must be equal or smaller than the number of nodes to identify</p>
+            <p v-if="(numberOfNodesLowRank < numberOfNodes) && computationMethod !== 'gauss'" class="input-error">Number of nodes for low rank must be equal or smaller than the number of nodes to identify</p>
 
             <div id="radioButtons">
                 <legend>Choose the matrix function</legend>

@@ -2,6 +2,8 @@
     import { ref } from 'vue';
     import { useComputationStore } from '@/stores/computationStore';
     import InfoSection from '@/components/InfoSection.vue';
+    import html2pdf from 'html2pdf.js';
+import { image } from 'd3';
 
     const computationStore = useComputationStore()
     const lowRankConvergence = ref('')
@@ -55,6 +57,18 @@
         return updatedD
     }
 
+    const pdfResults = () => {
+        const element = document.getElementsByClassName("container")[0]
+        console.log(element)
+        const options = {
+            filename: 'results.pdf',
+            image: {type: 'jpeg', quality: 0.98},
+            jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+        }
+
+        html2pdf().set(options).from(element).save();
+    }
+
 </script>
 
 <template>
@@ -104,6 +118,7 @@
         <InfoSection class="info-section" :title="'Used eigenvalues'" :description="'Only used eigenvalues are represented'" :viz="'eigenvalues'"></InfoSection>
         <InfoSection class="info-section" :title="'History of low rank bounds'" :description="'All the bounds estimated throughout the computation'" :viz="'boundsHistory'"></InfoSection>
     </template>
+    <button @click="pdfResults()" style="margin-top: 10vh;">Download PDF</button>
     </div>
     <footer style="width: max-content; height: 30vh;"></footer>
     

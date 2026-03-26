@@ -7,6 +7,7 @@ import ResultsView from '@/views/ResultsView.vue'
 
 import { useComplexNetworkStore } from '@/stores/complexNetwork'
 import { usePositionsStore } from '@/stores/positionsStore'
+import { useComputationStore } from '@/stores/computationStore'
 import nprogress from 'nprogress'
 
 
@@ -49,11 +50,13 @@ const router = createRouter({
 router.beforeEach(async (to, _from, next) => {
     // nprogress.start() -> if loading bar during page navigation is needed 
     const complexNetworkStore = useComplexNetworkStore()
+    const computationStore = useComputationStore()
     const positionsStore = usePositionsStore()
     console.log(complexNetworkStore.token)
 
     if (to.path === '/') {
       positionsStore.currentLayer = {}
+      computationStore.computationResult = {}
     }
 
     if (to.matched.some(r => r.meta.requiresNetwork)) {
