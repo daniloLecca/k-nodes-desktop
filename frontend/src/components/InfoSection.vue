@@ -76,6 +76,7 @@
             .attr("transform", `translate(${margin.left},${margin.top})`);
 
         const plotLayer = svg.append("g");
+        let currentTransform = d3.zoomIdentity;
 
         const x = d3.scaleLinear()
             .domain([0, usedEigenValues.length])
@@ -95,7 +96,9 @@
         plotLayer.append("g")
             .call(d3.axisLeft(y))
 
-        plotLayer.selectAll("circle")
+        const points = usedEigenValues.map(d => [x(d.i), y(d.eig), d.i, d.eig]);
+
+        const circles = plotLayer.selectAll("circle")
             .data(usedEigenValues)
             .enter()
             .append("circle")
@@ -106,136 +109,6 @@
             .attr("stroke", "steelblue") 
             .attr("stroke-width", 0.75);  
 
-        svgElement.call(d3.zoom()
-            .extent([[0, 0], [outerWidth, outerHeight]])
-            .scaleExtent([1, 8])
-            .on("zoom", ({ transform }) => {
-                plotLayer.attr("transform", transform);
-            }));
-    }
-
-    async function loadMultipleLineChartBoundsHistory() {
-        if (!chartContainer.value) {
-            return
-        }
-
-        const measuredWidth = Math.round(chartContainer.value.getBoundingClientRect().width)
-        const outerWidth = measuredWidth > 0 ? measuredWidth : 260
-        const outerHeight = outerWidth
-
-        const margin = { top: 20, right: 20, bottom: 30, left: 40 }
-        const width = Math.max(10, outerWidth - margin.left - margin.right)
-        const height = Math.max( outerHeight - margin.top - margin.bottom)
-
-        const container = d3.select(chartContainer.value)
-        container.selectAll("*").remove()
-
-        // transform the bounds array to get an array of "points", where each point is represented by: 
-        // x (which node), y (the bound), z (upper bound or lower bound)
-        const rawData = [];
-        bounds.forEach(d => {
-            // ensuring that the array of bounds is an array (i.e. forcing 1.42342 to [1.42342])
-            const lbArray = Array.isArray(d.lowerBounds) ? d.lowerBounds : [d.lowerBounds];
-            const ubArray = Array.isArray(d.upperBounds) ? d.upperBounds : [d.upperBounds];
-
-            lbArray.forEach((val, idx) => {
-                if (val !== undefined && val !== null) {
-                    rawData.push({ x: d.i, y: val, z: lbArray.length > 1 ? `Lower Bound ${idx+1}` : 'Lower Bound' });
-                }
-            });
-            ubArray.forEach((val, idx) => {
-                if (val !== undefined && val !== null) {
-                    rawData.push({ x: d.i, y: val, z: ubArray.length > 1 ? `Upper Bound ${idx+1}` : 'Upper Bound' });
-                }
-            });
-        });
-
-        if (rawData.length === 0) return;
-
-
-        const svgElement = container
-            .append("svg")
-            .attr("width", outerWidth)
-            .attr("height", outerHeight)
-            .attr("viewBox", `0 0 ${outerWidth} ${outerHeight}`)
-            .attr("style", "max-width: 100%; height: auto; overflow: visible; font: 10px sans-serif;");
-
-        // rectangle to "catch" the pointer
-        svgElement.append("rect")
-            .attr("width", outerWidth)
-            .attr("height", outerHeight)
-            .attr("fill", "transparent");
-
-        const svg = svgElement
-            .append("g")
-            .attr("transform", `translate(${margin.left},${margin.top})`);
-
-        const plotLayer = svg.append("g");
-        let currentTransform = d3.zoomIdentity;
-
-        
-        const x = d3.scaleLinear()
-            .domain(d3.extent(rawData, d => d.x)).nice()
-            .range([0, width]);
-
-        const y = d3.scaleLinear()
-            .domain(d3.extent(rawData, d => d.y)).nice()
-            .range([height, 0]);
-
-        
-        plotLayer.append("g")
-            .attr("transform", `translate(0,${height})`)
-            .call(d3.axisBottom(x).ticks(width / 80).tickSizeOuter(0));
-
-        
-        plotLayer.append("g")
-            .call(d3.axisLeft(y))
-            .call(g => g.select(".domain").remove())
-            .call(g => g.selectAll(".tick line").clone()
-                .attr("x2", width)
-                .attr("stroke-opacity", 0.1))
-            .call(g => g.append("text")
-                .attr("x", -margin.left)
-                .attr("y", -10)
-                .attr("fill", "currentColor")
-                .attr("text-anchor", "start")
-                .text("↑ Score"));
-
-        svgElement.call(d3.zoom()
-            .extent([[0, 0], [outerWidth, outerHeight]])
-            .scaleExtent([1, 8])
-            .on("zoom", ({ transform }) => {
-                currentTransform = transform;
-                plotLayer.attr("transform", transform);
-            }));
-
-        // determine the corresponding position in the axis
-        const points = rawData.map((d) => [x(d.x), y(d.y), d.z]);
-        // each point is mapped with a "group"
-        const groups = d3.rollup(points, v => Object.assign(v, {z: v[0][2]}), d => d[2]);
-
-        // color of the path depending on the theme (light or dark)
-        const getLineColor = (seriesName) => {
-            return seriesName.includes("Lower") 
-                ? "var(--color-tertiary, #5cb0cf)" 
-                : "steelblue";
-        };
-
-        const line = d3.line();
-        const path = plotLayer.append("g")
-            .attr("fill", "none")
-            .attr("stroke-width", 1.5)
-            .attr("stroke-linejoin", "round")
-            .attr("stroke-linecap", "round")
-            .attr("stroke-opacity", 0.2) 
-            .selectAll("path")
-            .data(groups.values())
-            .join("path")
-            .attr("stroke", d => getLineColor(d.z)) 
-            .attr("d", line);
-
-        
-        // "dot" is the tooltip
         const dot = plotLayer.append("g")
             .attr("display", "none");
 
@@ -249,8 +122,46 @@
             .attr("fill", "currentColor")
             .attr("y", -8);
 
+        const BASE_POINT_RADIUS = 2;
+        const ACTIVE_POINT_RADIUS = 3.5;
+        const BASE_HIT_RADIUS = 18;
+
+        function formatEigenTooltip(iteration, eigenvalue) {
+            const xLabel = Number.isFinite(iteration) ? Number(iteration).toFixed(2) : "-";
+            const yLabel = Number.isFinite(eigenvalue) ? Number(eigenvalue).toExponential(3) : "-";
+            return `EV ${Math.round(iteration)} (${xLabel}; ${yLabel})`;
+        }
+
+        function syncTooltipScale() {
+            const zoomK = Math.max(1, currentTransform.k);
+            dot.select("circle").attr("r", 2.5 / Math.sqrt(zoomK));
+            dot.select("text")
+                .attr("y", -8 / Math.sqrt(zoomK))
+                .style("font-size", `${Math.max(8, 12 / Math.sqrt(zoomK))}px`);
+        }
+
+        function highlightPoint(activeIteration = null) {
+            circles
+                .attr("r", d => (activeIteration !== null && d.i === activeIteration ? ACTIVE_POINT_RADIUS : BASE_POINT_RADIUS))
+                .attr("stroke-width", d => (activeIteration !== null && d.i === activeIteration ? 1.5 : 0.75));
+        }
+
+        syncTooltipScale();
+        highlightPoint();
+
+        svgElement.call(d3.zoom()
+            .extent([[0, 0], [outerWidth, outerHeight]])
+            .scaleExtent([1, 8])
+            .on("zoom", ({ transform }) => {
+                currentTransform = transform;
+                plotLayer.attr("transform", transform);
+                syncTooltipScale();
+            }));
+
         svgElement
-            .on("pointerenter", pointerentered)
+            .on("pointerenter", () => {
+                dot.attr("display", null);
+            })
             .on("pointermove", pointermoved)
             .on("pointerleave", pointerleft)
             .on("touchstart", event => event.preventDefault());
@@ -258,31 +169,302 @@
         function pointermoved(event) {
             const [xm, ym] = d3.pointer(event, svg.node());
             const [zx, zy] = currentTransform.invert([xm, ym]);
+            const hitRadius = BASE_HIT_RADIUS / Math.sqrt(Math.max(currentTransform.k, 1));
+
             const i = d3.leastIndex(points, ([px, py]) => Math.hypot(px - zx, py - zy));
             if (i === -1) return;
-            
-            const [px, py, k] = points[i];
-            const [tx, ty] = currentTransform.apply([px, py]);
-            
-            // handling opacity during hover:
-            // each path but the underlined one has 20% opacity, the underlined one has 100%
-            path.attr("stroke-opacity", d => d.z === k ? 1 : 0.2)
-                .filter(d => d.z === k).raise();
-            
-            dot.attr("transform", `translate(${tx},${ty})`);
-            dot.select("text").text(k);
-        }
 
-        function pointerentered() {
-            // makes sure that opacity is handled individually
+            const [px, py, iteration, eigenvalue] = points[i];
+            const distance = Math.hypot(px - zx, py - zy);
+
+            if (distance > hitRadius) {
+                pointerleft();
+                return;
+            }
+
+            highlightPoint(iteration);
             dot.attr("display", null);
+            dot.attr("transform", `translate(${px},${py})`);
+            dot.select("text").text(formatEigenTooltip(iteration, eigenvalue));
         }
 
         function pointerleft() {
-            // when mouse leaves, default opacity is assigned
-            path.attr("stroke-opacity", 0.2)
-                .style("mix-blend-mode", null); 
+            highlightPoint();
             dot.attr("display", "none");
+        }
+    }
+
+    async function loadMultipleLineChartBoundsHistory() {
+        if (!chartContainer.value) {
+            return
+        }
+
+        const measuredWidth = Math.round(chartContainer.value.getBoundingClientRect().width)
+        const outerWidth = measuredWidth > 0 ? measuredWidth : 260
+        const outerHeight = outerWidth
+
+        const margin = { top: 20, right: 20, bottom: 30, left: 40 }
+        const width = Math.max(10, outerWidth - margin.left - margin.right)
+        const height = Math.max(outerHeight - margin.top - margin.bottom)
+
+        const container = d3.select(chartContainer.value)
+        container.selectAll("*").remove()
+
+        const rawData = []
+        bounds.forEach(d => {
+            const lbArray = Array.isArray(d.lowerBounds) ? d.lowerBounds : [d.lowerBounds]
+            const ubArray = Array.isArray(d.upperBounds) ? d.upperBounds : [d.upperBounds]
+
+            lbArray.forEach((val, idx) => {
+                if (val !== undefined && val !== null) {
+                    const node = idx + 1
+                    rawData.push({
+                        x: d.i,
+                        y: val,
+                        kind: 'LB',
+                        node,
+                        seriesKey: `LB ${node}`
+                    })
+                }
+            })
+            ubArray.forEach((val, idx) => {
+                if (val !== undefined && val !== null) {
+                    const node = idx + 1
+                    rawData.push({
+                        x: d.i,
+                        y: val,
+                        kind: 'UB',
+                        node,
+                        seriesKey: `UB ${node}`
+                    })
+                }
+            })
+        })
+
+        if (rawData.length === 0) return
+
+        const svgElement = container
+            .append("svg")
+            .attr("width", outerWidth)
+            .attr("height", outerHeight)
+            .attr("viewBox", `0 0 ${outerWidth} ${outerHeight}`)
+            .attr("style", "max-width: 100%; height: auto; overflow: visible; font: 10px sans-serif;")
+
+        svgElement.append("rect")
+            .attr("width", outerWidth)
+            .attr("height", outerHeight)
+            .attr("fill", "transparent")
+
+        const svg = svgElement
+            .append("g")
+            .attr("transform", `translate(${margin.left},${margin.top})`)
+
+        const plotLayer = svg.append("g")
+        let currentTransform = d3.zoomIdentity
+
+        const x = d3.scaleLinear()
+            .domain(d3.extent(rawData, d => d.x)).nice()
+            .range([0, width])
+
+        const y = d3.scaleLinear()
+            .domain(d3.extent(rawData, d => d.y)).nice()
+            .range([height, 0])
+
+        plotLayer.append("g")
+            .attr("transform", `translate(0,${height})`)
+            .call(d3.axisBottom(x).ticks(width / 80).tickSizeOuter(0))
+
+        plotLayer.append("g")
+            .call(d3.axisLeft(y))
+            .call(g => g.select(".domain").remove())
+            .call(g => g.selectAll(".tick line").clone()
+                .attr("x2", width)
+                .attr("stroke-opacity", 0.1))
+            .call(g => g.append("text")
+                .attr("x", -margin.left)
+                .attr("y", -10)
+                .attr("fill", "currentColor")
+                .attr("text-anchor", "start")
+                .text("↑ Score"))
+
+        const points = rawData.map(d => [x(d.x), y(d.y), d.seriesKey])
+        const groups = d3.rollup(points, v => Object.assign(v, { z: v[0][2] }), d => d[2])
+        const seriesList = Array.from(groups.values()).map(series => {
+            const sorted = [...series].sort((a, b) => a[0] - b[0])
+            sorted.z = series.z
+            return sorted
+        })
+
+        const getLineColor = seriesName => {
+            return String(seriesName).startsWith("LB")
+                ? "var(--color-tertiary, #5cb0cf)"
+                : "steelblue"
+        }
+
+        const line = d3.line()
+        const path = plotLayer.append("g")
+            .attr("fill", "none")
+            .attr("stroke-width", 1.5)
+            .attr("stroke-linejoin", "round")
+            .attr("stroke-linecap", "round")
+            .attr("stroke-opacity", 0.2)
+            .selectAll("path")
+            .data(seriesList)
+            .join("path")
+            .attr("stroke", d => getLineColor(d.z))
+            .attr("d", line)
+            .attr("vector-effect", "non-scaling-stroke")
+
+        const dot = plotLayer.append("g")
+            .attr("display", "none")
+
+        dot.append("circle")
+            .attr("stroke", "red")
+            .attr("fill", "red")
+            .attr("r", 2.5)
+
+        dot.append("text")
+            .attr("text-anchor", "middle")
+            .attr("fill", "currentColor")
+            .attr("y", -8)
+
+        const BASE_STROKE_WIDTH = 1.5
+        const BASE_HIT_RADIUS = 20
+
+        function projectPointToSegment(px, py, ax, ay, bx, by) {
+            const abx = bx - ax
+            const aby = by - ay
+            const abLenSq = (abx * abx) + (aby * aby)
+
+            if (abLenSq === 0) {
+                return { x: ax, y: ay, distSq: (px - ax) ** 2 + (py - ay) ** 2 }
+            }
+
+            const t = Math.max(0, Math.min(1, (((px - ax) * abx) + ((py - ay) * aby)) / abLenSq))
+            const xProj = ax + (t * abx)
+            const yProj = ay + (t * aby)
+            return { x: xProj, y: yProj, distSq: (px - xProj) ** 2 + (py - yProj) ** 2 }
+        }
+
+        function findNearestSeriesPoint(cursorX, cursorY) {
+            let best = null
+
+            for (const series of seriesList) {
+                if (!series || series.length === 0) continue
+
+                if (series.length === 1) {
+                    const [sx, sy] = series[0]
+                    const distSq = (cursorX - sx) ** 2 + (cursorY - sy) ** 2
+                    if (!best || distSq < best.distSq) {
+                        best = { seriesName: series.z, x: sx, y: sy, distSq }
+                    }
+                    continue
+                }
+
+                for (let j = 0; j < series.length - 1; j += 1) {
+                    const [ax, ay] = series[j]
+                    const [bx, by] = series[j + 1]
+                    const projected = projectPointToSegment(cursorX, cursorY, ax, ay, bx, by)
+
+                    if (!best || projected.distSq < best.distSq) {
+                        best = {
+                            seriesName: series.z,
+                            x: projected.x,
+                            y: projected.y,
+                            distSq: projected.distSq
+                        }
+                    }
+                }
+            }
+
+            return best
+        }
+
+        function formatTooltip(seriesName, plotX, plotY) {
+            const iteration = x.invert(plotX)
+            const score = y.invert(plotY)
+            const [boundKind = '', node = '?'] = String(seriesName).split(' ')
+            const xLabel = Number.isFinite(iteration) ? iteration.toFixed(2) : '-'
+            const yLabel = Number.isFinite(score) ? score.toExponential(3) : '-'
+            return `${boundKind} ${node} (${xLabel}; ${yLabel})`
+        }
+
+        function applyLineEmphasis(activeSeries = null) {
+            const zoomK = Math.max(1, currentTransform.k)
+            const fadedOpacity = 0.08
+            const defaultOpacity = 0.2
+            const activeOpacity = 1
+            const defaultWidth = BASE_STROKE_WIDTH
+            const activeWidth = Math.min(4.5, BASE_STROKE_WIDTH + Math.log2(zoomK + 1))
+
+            path
+                .attr("stroke-opacity", d => {
+                    if (!activeSeries) return defaultOpacity
+                    return d.z === activeSeries ? activeOpacity : fadedOpacity
+                })
+                .attr("stroke-width", d => {
+                    if (!activeSeries) return defaultWidth
+                    return d.z === activeSeries ? activeWidth : defaultWidth
+                })
+
+            if (activeSeries) {
+                path.filter(d => d.z === activeSeries).raise()
+            }
+        }
+
+        function syncTooltipScale() {
+            const zoomK = Math.max(1, currentTransform.k)
+            dot.select("circle").attr("r", 2.5 / Math.sqrt(zoomK))
+            dot.select("text")
+                .attr("y", -8 / Math.sqrt(zoomK))
+                .style("font-size", `${Math.max(8, 12 / Math.sqrt(zoomK))}px`)
+        }
+
+        applyLineEmphasis()
+        syncTooltipScale()
+
+        svgElement.call(d3.zoom()
+            .extent([[0, 0], [outerWidth, outerHeight]])
+            .scaleExtent([1, 8])
+            .on("zoom", ({ transform }) => {
+                currentTransform = transform
+                plotLayer.attr("transform", transform)
+                syncTooltipScale()
+            }))
+
+        svgElement
+            .on("pointerenter", pointerentered)
+            .on("pointermove", pointermoved)
+            .on("pointerleave", pointerleft)
+            .on("touchstart", event => event.preventDefault())
+
+        function pointermoved(event) {
+            const [xm, ym] = d3.pointer(event, svg.node())
+            const [zx, zy] = currentTransform.invert([xm, ym])
+            const hitRadius = BASE_HIT_RADIUS / Math.sqrt(Math.max(currentTransform.k, 1))
+
+            const nearest = findNearestSeriesPoint(zx, zy)
+            if (!nearest) return
+
+            const distance = Math.sqrt(nearest.distSq)
+            if (distance > hitRadius) {
+                pointerleft()
+                return
+            }
+
+            applyLineEmphasis(nearest.seriesName)
+            dot.attr("display", null)
+            dot.attr("transform", `translate(${nearest.x},${nearest.y})`)
+            dot.select("text").text(formatTooltip(nearest.seriesName, nearest.x, nearest.y))
+        }
+
+        function pointerentered() {
+            dot.attr("display", null)
+        }
+
+        function pointerleft() {
+            applyLineEmphasis()
+            dot.attr("display", "none")
         }
     }
 

@@ -3,7 +3,6 @@
     import { useComputationStore } from '@/stores/computationStore';
     import InfoSection from '@/components/InfoSection.vue';
     import html2pdf from 'html2pdf.js';
-import { image } from 'd3';
 
     const computationStore = useComputationStore()
     const lowRankConvergence = ref('')
