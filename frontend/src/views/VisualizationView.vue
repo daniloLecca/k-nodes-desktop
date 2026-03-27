@@ -184,10 +184,51 @@
         </div>
         <div id="container" ref="containerRef"></div>
         <div id="controls">
-            <button @click="fullScreenMode()">{{ isFullscreen ? 'x' : '[ ]' }}</button>
-            <button @click="zoomIn()">+</button>
-            <button @click="zoomOut()">-</button>
-            <button @click="resetZoom()">o</button>
+            <button @click="fullScreenMode()">
+                <svg v-if="!isFullscreen" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round">
+                    <g stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M8 3 H5 Q3 3 3 5 V8"/>
+                        <path d="M16 3 H19 Q21 3 21 5 V8"/>
+                        <path d="M21 16 V19 Q21 21 19 21 H16"/>
+                        <path d="M8 21 H5 Q3 21 3 19 V16"/>
+                    </g>
+                </svg>
+                <svg v-else width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round">
+                    <g stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M10 7 H7 Q6 7 6 8 V10"/>
+                        <path d="M14 7 H17 Q18 7 18 8 V10"/>
+                        <path d="M18 14 V17 Q18 18 17 18 H14"/>
+                        <path d="M10 18 H7 Q6 18 6 17 V14"/>
+                    </g>
+                </svg>
+            </button>
+            <button @click="zoomIn()">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="11" cy="11" r="7"/>
+                    <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                    <line x1="11" y1="8" x2="11" y2="14"/>
+                    <line x1="8" y1="11" x2="14" y2="11"/>
+                </svg>
+            </button>
+            <button @click="zoomOut()">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="11" cy="11" r="7"/>
+                    <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                    <line x1="8" y1="11" x2="14" y2="11"/>
+                </svg>
+            </button>
+            <button @click="resetZoom()">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="12" r="7" stroke="currentColor" stroke-width="1"/>
+                    <g stroke="currentColor" stroke-width="1" stroke-linecap="round">
+                        <line x1="12" y1="2.5" x2="12" y2="5"/>
+                        <line x1="12" y1="19" x2="12" y2="21.5"/>
+                        <line x1="2.5" y1="12" x2="5" y2="12"/>
+                        <line x1="19" y1="12" x2="21.5" y2="12"/>
+                    </g>
+                    <circle cx="12" cy="12" r="2.2" fill="currentColor"/>
+                </svg>
+            </button>
         </div>
     </main>
 </template>
@@ -209,6 +250,11 @@
         margin-top: 0;
         width: 100vw;
         height: 100vh;
+        background: var(--color-background);
+    }
+
+    :global(main:fullscreen::backdrop) {
+        background: var(--color-background);
     }
 
     h1 {
@@ -227,11 +273,16 @@
 
     @media (max-width: 400px) {
         button {
-            width: 50%;
+            width: 90%;
         }
 
         button:first-child {
             visibility: hidden;
+        }
+
+        svg {
+            width: 100%;
+            height: 100%;
         }
     }
 

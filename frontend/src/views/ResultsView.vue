@@ -57,7 +57,7 @@
         return updatedD
     }
 
-    const pdfResults = () => {
+    function pdfResults() {
         const element = document.getElementsByClassName("container")[0]
         console.log(element)
         const options = {
