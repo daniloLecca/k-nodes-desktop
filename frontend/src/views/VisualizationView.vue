@@ -12,8 +12,11 @@
     const computationStore = useComputationStore()
     const positions = usePositionsStore()
     const containerRef = ref(null)
+    const mainRef = ref(null)
     const sigmaInstance = ref(null)
     const sigmaCamera = ref(null)
+    const selectedNodeId = ref(null)
+    const isFullscreen = ref(false)
     let graph = null
     let isUnmounted = false
 
@@ -42,7 +45,33 @@
         console.log(sigmaCamera.value)
     }
 
+    async function fullScreenMode () {
+        const element = mainRef.value
+        if (!(element instanceof HTMLElement)) return
+
+        try {
+            if (document.fullscreenElement === element) {
+                await document.exitFullscreen()
+            } else {
+                await element.requestFullscreen()
+            }
+        } catch (error) {
+            console.error('Unable to toggle fullscreen mode:', error)
+        }
+    }
+
+    function handleFullscreenChange() {
+        isFullscreen.value = document.fullscreenElement === mainRef.value
+
+        // a refresh after layout size changes is needed (both enter/exit fullscreen).
+        if (sigmaInstance.value) {
+            sigmaInstance.value.refresh()
+        }
+    }
+
     onMounted(async () => {
+        document.addEventListener('fullscreenchange', handleFullscreenChange)
+
         const container = containerRef.value
         if (!(container instanceof HTMLElement)) return
 
@@ -102,16 +131,26 @@
 
             // every time the page is loaded, the rendering gets refreshed
             sigmaInstance.value.setSetting("nodeReducer", (nodeId, data) => {
-                if (vipNodes.includes(Number(nodeId))) {
-                    console.log(vipNodes)
-                    return {
-                        ...data,  
-                        color: "orange", 
-                        label: "VIP node: " + String(Number(nodeId) + 1),
-                        size: 5
-                    };
+                const isVip = vipNodes.includes(Number(nodeId))
+                const isSelected = selectedNodeId.value === nodeId
+
+                const baseLabel = isVip
+                    ? "VIP node: " + String(Number(nodeId) + 1)
+                    : data.label
+
+                return {
+                    ...data,
+                    color: isVip ? "orange" : data.color,
+                    size: isVip ? 5 : data.size,
+                    label: isSelected
+                        ? `${baseLabel}, degree: ${graph.degree(nodeId)}`
+                        : baseLabel
                 }
-                return data;
+            })
+
+            sigmaInstance.value.on("clickNode", ({ node }) => {
+                selectedNodeId.value = selectedNodeId.value === node ? null : node
+                sigmaInstance.value.refresh()
             })
             
             console.log({"nodes":graph.order, "edges": graph.size})
@@ -125,6 +164,7 @@
 
     onUnmounted(() => {
         isUnmounted = true
+        document.removeEventListener('fullscreenchange', handleFullscreenChange)
         if (sigmaInstance.value) {
             sigmaInstance.value.kill()
             sigmaInstance.value = null
@@ -134,7 +174,7 @@
 </script>
 
 <template>
-    <main>
+    <main ref="mainRef" :class="{ 'main--fullscreen': isFullscreen }">
         <div class="title">
             <h2>{{ complexNetworkStore.fileName }}</h2>
             <p>The network has {{ complexNetworkStore.nnodes }} nodes and {{ complexNetworkStore.edges }} edges. </p>
@@ -144,6 +184,7 @@
         </div>
         <div id="container" ref="containerRef"></div>
         <div id="controls">
+            <button @click="fullScreenMode()">{{ isFullscreen ? 'x' : '[ ]' }}</button>
             <button @click="zoomIn()">+</button>
             <button @click="zoomOut()">-</button>
             <button @click="resetZoom()">o</button>
@@ -163,6 +204,13 @@
         background: transparent;
     }
 
+    main:fullscreen,
+    .main--fullscreen {
+        margin-top: 0;
+        width: 100vw;
+        height: 100vh;
+    }
+
     h1 {
         font-size: 56px;
         font-weight: 500;
@@ -170,6 +218,21 @@
 
     #container {
         height: 100vh;
+    }
+
+    main:fullscreen #container,
+    .main--fullscreen #container {
+        height: 100vh;
+    }
+
+    @media (max-width: 400px) {
+        button {
+            width: 50%;
+        }
+
+        button:first-child {
+            visibility: hidden;
+        }
     }
 
     @media (max-height: 999px) {

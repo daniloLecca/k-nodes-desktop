@@ -7,6 +7,7 @@
     const computationStore = useComputationStore()
     const lowRankConvergence = ref('')
     const additionalNodes = ref(0)
+    const zoomedSection = ref(null)
 
     if (computationStore.computationData.compMethod === 'lr') {
         if (computationStore.computationResult.vip_nodes.length === computationStore.computationData.numNodes) {
@@ -68,6 +69,10 @@
         html2pdf().set(options).from(element).save();
     }
 
+    function toggleSectionZoom(sectionId) {
+        zoomedSection.value = zoomedSection.value === sectionId ? null : sectionId
+    }
+
 </script>
 
 <template>
@@ -112,10 +117,34 @@
         </div>
 
     </main>
-    <InfoSection class="info-section" :title="'Scatterplot of the adjacency matrix'" :description="'Each blue dot represent an edge'" :viz="'scatterplot'"></InfoSection>
+    <InfoSection
+        class="info-section"
+        :class="{ 'info-section--zoomed': zoomedSection === 'scatterplot' }"
+        :title="'Scatterplot of the adjacency matrix'"
+        :description="'Each blue dot represent an edge'"
+        :viz="'scatterplot'"
+        :interaction-scale="zoomedSection === 'scatterplot' ? 2 : 1"
+        @click="toggleSectionZoom('scatterplot')"
+    ></InfoSection>
     <template v-if="computationStore.computationData.compMethod !== 'gauss'">
-        <InfoSection class="info-section" :title="'Used eigenvalues'" :description="'Only used eigenvalues are represented'" :viz="'eigenvalues'"></InfoSection>
-        <InfoSection class="info-section" :title="'History of low rank bounds'" :description="'All the bounds estimated throughout the computation'" :viz="'boundsHistory'"></InfoSection>
+        <InfoSection
+            class="info-section"
+            :class="{ 'info-section--zoomed': zoomedSection === 'eigenvalues' }"
+            :title="'Used eigenvalues'"
+            :description="'Only used eigenvalues are represented'"
+            :viz="'eigenvalues'"
+            :interaction-scale="zoomedSection === 'eigenvalues' ? 2 : 1"
+            @click="toggleSectionZoom('eigenvalues')"
+        ></InfoSection>
+        <InfoSection
+            class="info-section"
+            :class="{ 'info-section--zoomed': zoomedSection === 'boundsHistory' }"
+            :title="'History of low rank bounds'"
+            :description="'All the bounds estimated throughout the computation'"
+            :viz="'boundsHistory'"
+            :interaction-scale="zoomedSection === 'boundsHistory' ? 2 : 1"
+            @click="toggleSectionZoom('boundsHistory')"
+        ></InfoSection>
     </template>
     <button @click="pdfResults()" style="margin-top: 10vh;">Download PDF</button>
     </div>
@@ -184,6 +213,15 @@
         width: 100%;
         align-self: flex-start;
         margin-top: 5vh;
+        cursor: zoom-in;
+        transform-origin: center;
+        transition: transform 180ms ease;
+    }
+
+    .info-section--zoomed {
+        transform: scale(2);
+        cursor: zoom-out;
+        z-index: 2;
     }
 
     @media (max-width: 900px) {

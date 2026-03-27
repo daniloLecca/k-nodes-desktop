@@ -10,7 +10,11 @@
     const props = defineProps({
         title: String,
         description: String, 
-        viz: String
+        viz: String,
+        interactionScale: {
+            type: Number,
+            default: 1
+        }
     })
 
     const imageUrl = ref(null)
@@ -126,6 +130,14 @@
         const ACTIVE_POINT_RADIUS = 3.5;
         const BASE_HIT_RADIUS = 18;
 
+        function pointerInPlotCoordinates(event) {
+            const scale = Math.max(1, props.interactionScale || 1);
+            const rect = chartContainer.value.getBoundingClientRect();
+            const localX = (event.clientX - rect.left) / scale;
+            const localY = (event.clientY - rect.top) / scale;
+            return [localX - margin.left, localY - margin.top];
+        }
+
         function formatEigenTooltip(iteration, eigenvalue) {
             const xLabel = Number.isFinite(iteration) ? Number(iteration).toFixed(2) : "-";
             const yLabel = Number.isFinite(eigenvalue) ? Number(eigenvalue).toExponential(3) : "-";
@@ -167,9 +179,10 @@
             .on("touchstart", event => event.preventDefault());
 
         function pointermoved(event) {
-            const [xm, ym] = d3.pointer(event, svg.node());
+            const [xm, ym] = pointerInPlotCoordinates(event);
             const [zx, zy] = currentTransform.invert([xm, ym]);
-            const hitRadius = BASE_HIT_RADIUS / Math.sqrt(Math.max(currentTransform.k, 1));
+            const hitRadius = BASE_HIT_RADIUS /
+                (Math.sqrt(Math.max(currentTransform.k, 1)) * Math.max(1, props.interactionScale || 1));
 
             const i = d3.leastIndex(points, ([px, py]) => Math.hypot(px - zx, py - zy));
             if (i === -1) return;
@@ -331,6 +344,14 @@
         const BASE_STROKE_WIDTH = 1.5
         const BASE_HIT_RADIUS = 20
 
+        function pointerInPlotCoordinates(event) {
+            const scale = Math.max(1, props.interactionScale || 1)
+            const rect = chartContainer.value.getBoundingClientRect()
+            const localX = (event.clientX - rect.left) / scale
+            const localY = (event.clientY - rect.top) / scale
+            return [localX - margin.left, localY - margin.top]
+        }
+
         function projectPointToSegment(px, py, ax, ay, bx, by) {
             const abx = bx - ax
             const aby = by - ay
@@ -439,9 +460,10 @@
             .on("touchstart", event => event.preventDefault())
 
         function pointermoved(event) {
-            const [xm, ym] = d3.pointer(event, svg.node())
+            const [xm, ym] = pointerInPlotCoordinates(event)
             const [zx, zy] = currentTransform.invert([xm, ym])
-            const hitRadius = BASE_HIT_RADIUS / Math.sqrt(Math.max(currentTransform.k, 1))
+            const hitRadius = BASE_HIT_RADIUS /
+                (Math.sqrt(Math.max(currentTransform.k, 1)) * Math.max(1, props.interactionScale || 1))
 
             const nearest = findNearestSeriesPoint(zx, zy)
             if (!nearest) return
@@ -465,6 +487,12 @@
         function pointerleft() {
             applyLineEmphasis()
             dot.attr("display", "none")
+        }
+    }
+
+    function stopParentClickWhenZoomed(event) {
+        if ((props.interactionScale || 1) > 1) {
+            event.stopPropagation()
         }
     }
 
@@ -506,8 +534,22 @@
 </script>
 <template>
     <main>
-        <img v-if="props.viz === 'scatterplot' && imageUrl" :src="imageUrl" class="media-box" />
-        <div v-else-if="props.viz === 'eigenvalues' || props.viz === 'boundsHistory'" ref="chartContainer" class="media-box chart-box"></div>
+        <img
+            v-if="props.viz === 'scatterplot' && imageUrl"
+            :src="imageUrl"
+            class="media-box"
+            @click.stop="stopParentClickWhenZoomed"
+            @pointerdown.stop="stopParentClickWhenZoomed"
+            @pointerup.stop="stopParentClickWhenZoomed"
+        />
+        <div
+            v-else-if="props.viz === 'eigenvalues' || props.viz === 'boundsHistory'"
+            ref="chartContainer"
+            class="media-box chart-box"
+            @click.stop="stopParentClickWhenZoomed"
+            @pointerdown.stop="stopParentClickWhenZoomed"
+            @pointerup.stop="stopParentClickWhenZoomed"
+        ></div>
         <article>
             <h3>{{ title }}</h3>
             <p>{{ description }}</p>
@@ -545,6 +587,7 @@
         margin: 0;
         width: clamp(240px, 20vw, 300px);
         max-width: 100%;
+        cursor: default;
     }
 
     img {
