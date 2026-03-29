@@ -1,7 +1,9 @@
 <script setup>
 import { RouterLink, RouterView, useRoute } from 'vue-router'
+import { useComputationStore } from './stores/computationStore';
 
 const route = useRoute();
+const computationStore = useComputationStore()
 </script>
 
 <template>
@@ -39,6 +41,24 @@ const route = useRoute();
               <path d="M22 20V8"></path>
             </svg>
             Analysis
+          </RouterLink>
+          <RouterLink v-if="
+                (Array.isArray(computationStore.computationResult?.vip_nodes)
+                ? computationStore.computationResult.vip_nodes
+                : []).length > 0
+                "
+                to="/results" class="toggle-tab app-link-inline" active-class="active">
+            <svg class="button-icon" viewBox="0 0 24 24" aria-hidden="true"
+            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+            fill="none" xmlns="http://www.w3.org/2000/svg">
+              <circle cx="4" cy="6" r="1.5"/>
+              <line x1="8" y1="6" x2="20" y2="6"/>
+              <circle cx="6" cy="12" r="1.5"/>
+              <line x1="10" y1="12" x2="20" y2="12"/>
+              <circle cx="8" cy="18" r="1.5"/>
+              <line x1="12" y1="18" x2="20" y2="18"/>
+            </svg>
+            Results
           </RouterLink>
         </div>
       </div>
@@ -140,15 +160,18 @@ const route = useRoute();
   }
 
   .toggle-container {
-    width: max-content;
+    width: 100%;
     max-width: 100%;
     flex-wrap: nowrap;
     border-radius: 16px;
   }
 
   .toggle-tab {
-    flex: 0 0 auto;
+    flex: 1 1 0;
+    min-width: 0;
     text-align: center;
+    justify-content: center;
+    padding-inline: 0.6rem;
   }
 
   .logo {

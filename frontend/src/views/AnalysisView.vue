@@ -100,7 +100,11 @@
         <h2>Compute the centrality measures of the complex network. </h2>
         <h4>The network has {{ complexNetworkStore.nnodes }} nodes and {{ complexNetworkStore.edges }} edges. </h4>
         <h3 style="color: var(--color-button-danger);"> {{ error }}</h3>
-        <RouterLink to="/results" class="app-link-inline">
+        <RouterLink v-if="
+                (Array.isArray(computationStore.computationResult?.vip_nodes)
+                ? computationStore.computationResult.vip_nodes
+                : []).length > 0
+                " to="/results" class="app-link-inline">
                 <svg class="button-icon" viewBox="0 0 24 24" aria-hidden="true">
                     <path d="M19 12H5"></path>
                     <path d="M12 19l-7-7 7-7"></path>
