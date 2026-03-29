@@ -1,5 +1,5 @@
 <script setup>
-    import { ref } from 'vue';
+    import { ref, computed } from 'vue';
     import { useComputationStore } from '@/stores/computationStore';
     import InfoSection from '@/components/InfoSection.vue';
     import html2pdf from 'html2pdf.js';
@@ -8,22 +8,42 @@
     const lowRankConvergence = ref('')
     const additionalNodes = ref(0)
     const zoomedSection = ref(null)
+    const vipNodes = computed(() => Array.isArray(computationStore.computationResult?.vip_nodes)
+        ? computationStore.computationResult.vip_nodes
+        : [])
+    const vipScores = computed(() => Array.isArray(computationStore.computationResult?.vip_scores)
+        ? computationStore.computationResult.vip_scores
+        : [])
+    const vipLowrank = computed(() => Array.isArray(computationStore.computationResult?.vip_lowrank)
+        ? computationStore.computationResult.vip_lowrank
+        : [])
+    const matrixVectorProducts = computed(() => {
+        if (Array.isArray(computationStore.computationResult?.["matrix vector products"])) {
+            return computationStore.computationResult["matrix vector products"]
+        }
+
+        if (Array.isArray(computationStore.computationResult?.matrix_vector_products)) {
+            return computationStore.computationResult.matrix_vector_products
+        }
+
+        return []
+    })
 
     if (computationStore.computationData.compMethod === 'lr') {
-        if (computationStore.computationResult.vip_nodes.length === computationStore.computationData.numNodes) {
+        if (vipNodes.value.length === computationStore.computationData.numNodes) {
             lowRankConvergence.value = "Strong convergence"
-        } else if (computationStore.computationResult.vip_nodes.length > computationStore.computationData.numNodes + 100) {
+        } else if (vipNodes.value.length > computationStore.computationData.numNodes + 100) {
             lowRankConvergence.value = "No convergence"
         } else {
             lowRankConvergence.value = "Weak convergence"
-            additionalNodes.value = computationStore.computationResult.vip_nodes.length - computationStore.computationData.numNodes
+            additionalNodes.value = vipNodes.value.length - computationStore.computationData.numNodes
         }
     } else {
         if (computationStore.computationResult.convergence_lowrank === 'no convergence') {
             lowRankConvergence.value = "No convergence"
         } else if (computationStore.computationResult.convergence_lowrank === 'weak convergence') {
             lowRankConvergence.value = "Weak convergence"
-            additionalNodes.value = computationStore.computationResult.vip_lowrank.length - computationStore.computationData.numNodesLR
+            additionalNodes.value = vipLowrank.value.length - computationStore.computationData.numNodesLR
         } else {
             lowRankConvergence.value = "Strong convergence"
         }
@@ -86,12 +106,12 @@
         </h2>
         <h2 v-else>The VIP nodes have been identified successfully!</h2>
         <h3 v-if="computationStore.computationData.compMethod === 'hyb'"> Number of nodes seeked via low rank approximation: {{ computationStore.computationData.numNodesLR }}</h3>   
-        <h3 v-if="computationStore.computationData.compMethod === 'hyb'"> Number of nodes identified via low rank approximation: {{ computationStore.computationResult.vip_lowrank.length }}</h3>   
-        <h3>Total number of VIP nodes identified: {{ computationStore.computationResult.vip_nodes.length }}</h3>
+           <h3 v-if="computationStore.computationData.compMethod === 'hyb'"> Number of nodes identified via low rank approximation: {{ vipLowrank.length }}</h3>   
+           <h3>Total number of VIP nodes identified: {{ vipNodes.length }}</h3>
         <h3>Elapsed time: {{ computationStore.computationResult.elapsed_time }}s</h3>
         <h3 v-if="computationStore.computationData.compMethod !== 'gauss'">Number of used eigenpairs: {{ computationStore.computationResult.used_eigenpairs }}</h3>
         <h3 v-if="computationStore.computationData.compMethod === 'gauss'">Mean of matrix vector products:
-             {{ (computationStore.computationResult["matrix vector products"].reduce((sum, num) => sum + num, 0)) / computationStore.computationResult["matrix vector products"].length}}
+               {{ matrixVectorProducts.length > 0 ? (matrixVectorProducts.reduce((sum, num) => sum + num, 0)) / matrixVectorProducts.length : 0 }}
         </h3>
         <section>
             <h3>Computation parameters: </h3>
@@ -105,14 +125,14 @@
         <div class="results-table-column">
             <h4>VIP nodes: </h4>
             <ul>
-                <li v-for="node in computationStore.computationResult.vip_nodes"> Node: {{ node + 1 }} </li>
+                <li v-for="node in vipNodes"> Node: {{ node + 1 }} </li>
             </ul>
         </div>
 
         <div class="results-table-column">
             <h4>VIP scores: </h4>
             <ul>
-                <li v-for="score in computationStore.computationResult.vip_scores"> Score: {{ score }} </li>
+                <li v-for="score in vipScores"> Score: {{ score }} </li>
             </ul>
         </div>
 

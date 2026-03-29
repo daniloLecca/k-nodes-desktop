@@ -57,18 +57,23 @@ router.beforeEach(async (to, _from, next) => {
     if (to.path === '/') {
       positionsStore.currentLayer = {}
       computationStore.computationResult = {}
+      computationStore.computationData = {}
+    }
+
+    if (to.path === '/results' && computationStore.isComputationDataEmpty) {
+      console.log("going to results without having computed anything")
+      return next({ path: '/'})
     }
 
     if (to.matched.some(r => r.meta.requiresNetwork)) {
-
-    if (!complexNetworkStore.token || typeof complexNetworkStore.token !== 'string' || complexNetworkStore.token.trim() === '') {
-            next({ path: '/'})
-        } else {
-            next()
-        }
-    } else {
-        next()
+      if (!complexNetworkStore.token || typeof complexNetworkStore.token !== 'string' || complexNetworkStore.token.trim() === '') {
+              return next({ path: '/'})
+          } else {
+              return next()
+          }
     }
+
+    return next()
 })
 
 /* -> if loading bar during page navigation is needed

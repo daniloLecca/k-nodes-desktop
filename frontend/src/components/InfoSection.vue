@@ -14,7 +14,8 @@
         interactionScale: {
             type: Number,
             default: 1
-        }
+        }, 
+        imgURL: String
     })
 
     const imageUrl = ref(null)
@@ -23,10 +24,12 @@
 
     const usedEigenValues = []
     const bounds = []
+    const requiresCandidatesHistory = props.viz === 'eigenvalues' || props.viz === 'boundsHistory'
+    const candidatesHistory = computationStore.computationResult?.candidates_history
     
     // bounds is an array like [{"i": 1, "lowerBounds": [0, 1, 2], "upperBounds": [3, 4, 5]}]
-    if (props.viz !== 'scatterplot') {
-        for (const [key, value] of Object.entries(computationStore.computationResult.candidates_history)) {
+    if (requiresCandidatesHistory && candidatesHistory && typeof candidatesHistory === 'object') {
+        for (const [key, value] of Object.entries(candidatesHistory)) {
             const iter = parseInt(key) + 1;
             usedEigenValues.push({"i": iter, "eig": value.eigenvalue})
             bounds.push({"i": iter, "lowerBounds": value.lower_bounds, "upperBounds": value.upper_bounds})
@@ -550,6 +553,15 @@
             @pointerdown.stop="stopParentClickWhenZoomed"
             @pointerup.stop="stopParentClickWhenZoomed"
         ></div>
+        <img
+            v-else-if="props.imgURL"
+            :src="props.imgURL"
+            class="media-box"
+            alt="Info section image"
+            @click.stop="stopParentClickWhenZoomed"
+            @pointerdown.stop="stopParentClickWhenZoomed"
+            @pointerup.stop="stopParentClickWhenZoomed"
+        />
         <article>
             <h3>{{ title }}</h3>
             <p>{{ description }}</p>

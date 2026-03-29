@@ -159,8 +159,10 @@ async function sendFile (uploadedFile) {
 
       const result = payload;
 
-      computationStore.computationResult = result
-      computationStore.computationData = computationData
+      computationStore.$patch({
+        computationData,
+        computationResult: result,
+      })
 
       console.log(result)
 

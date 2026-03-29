@@ -1,9 +1,10 @@
 <script setup>
-  import { ref, computed } from 'vue'
+  import { ref, computed, onMounted } from 'vue'
   import { useComplexNetworkStore } from '@/stores/complexNetwork'
   import router from '@/router/index'
   import nprogress from 'nprogress'
   import { sendFile, generateRandomNetwork } from '@/utils/apis'
+  import InfoSection from '@/components/InfoSection.vue'
 
   const selectedFile = ref(null)
   const error = ref('')
@@ -12,6 +13,7 @@
   const randomEdges = ref(2)
   const networkModel = ref('scale_free')
   const rewiringProbability = ref(0.01)
+  const vipnodesLogoUrl = new URL('../assets/vipnodes-logo.png', import.meta.url).href
 
   const fileInput = ref(null)
 
@@ -69,7 +71,7 @@
 </script>
 
 <template>
-  <main>
+  <main class="home-main">
     <RouterLink to="/"><h1>VIPNODES</h1></RouterLink>
     <h2>VIPNODES is an online tool for computing centrality measures in undirected, unweighted complex networks.</h2>
     <h4>Load a .mat file</h4>
@@ -114,6 +116,13 @@
     </button>
 
     <p v-if="error" class="error-message">{{ error }}</p>
+
+    <InfoSection
+      :title="'Lorem Ipsum'"
+      :description="'Short description'"
+      :imgURL="vipnodesLogoUrl"
+      class="info-section"
+    ></InfoSection>
   </main>
 
   <div
@@ -130,6 +139,8 @@
         v-model.number="randomNodes"
         type="number"
         min="0"
+        autofocus
+        @keypress.enter="submitRandomNetworkParams"
       />
 
       <p v-if="randomNodes <= 2" class="input-error">The network must have at least 3 nodes.</p>
@@ -140,6 +151,7 @@
         v-model.number="randomEdges"
         type="number"
         min="0"
+        @keypress.enter="submitRandomNetworkParams"
       />
       <p v-if="randomNodes <= randomEdges" class="input-error">Nodes must be greater than edges.</p>
       <p v-if="randomEdges <= 1" class="input-error">The network must have at least 2 edges.</p>
@@ -166,6 +178,7 @@
           min="0.01"
           max="1"
           @input="clampProbability"
+          @keypress.enter="submitRandomNetworkParams"
         />
       </div>
 
@@ -197,7 +210,19 @@
     font-weight: 200;
   }
 
-  main {
+  .info-section {
+    margin-top: 30vh;
+  }
+
+  :deep(.info-section article p) {
+    text-align: left;
+  }
+
+  :deep(.info-section img) {
+    width: 50%;
+  }
+
+  .home-main {
     display: flex;
     flex-direction: column;
     gap: 0.8rem;
@@ -304,6 +329,18 @@
   @media (max-width: 768px) {
     h1 {
       font-size: 64px;
+    }
+
+    .info-section {
+      width: 100%;
+    }
+
+    :deep(.info-section article p) {
+      text-align: center;
+    }
+
+    :deep(.info-section img) {
+      width: 100%;
     }
   }
 
