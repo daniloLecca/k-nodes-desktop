@@ -1,7 +1,5 @@
 <script setup>
-  import { ref, computed, onMounted } from 'vue'
-  import { useComplexNetworkStore } from '@/stores/complexNetwork'
-  import router from '@/router/index'
+  import { ref, computed } from 'vue'
   import nprogress from 'nprogress'
   import { sendFile, generateRandomNetwork } from '@/utils/apis'
   import InfoSection from '@/components/InfoSection.vue'
@@ -13,16 +11,32 @@
   const randomEdges = ref(2)
   const networkModel = ref('scale_free')
   const rewiringProbability = ref(0.01)
-  const vipnodesLogoUrl = new URL('../assets/vipnodes-logo.png', import.meta.url).href
+  const vipnodesLogoUrl = new URL('../assets/place-holder-image.png', import.meta.url).href
+
+  const infoSectionsDescriptions = [
+    {
+      title: "Why VIPNODES?",
+      description: "VIPNODES computes the most important nodes of a complex network, therefore the \'VIP\' nodes.", 
+      imgURL: (new URL('../assets/place-holder-image.png', import.meta.url).href)
+    },
+    {
+      title: "How do I upload a complex network with VIPNODES?",
+      description: "At this very moment, VIPNODES supports only .mat files. The .mat file must contain exactly one variable\
+      and is must be a sparse matrix (which represents the adjacency matrix). \nA Column Sparse format is preferable but not mandatory.\
+      The complex network must be undirected, therefore the adjacency matrix has to be symmetric. \n\n \
+      In addition, you can even generate a random complex network specifying the number of nodes and starting edges. \n \
+      Two types of random network generation models are available: \n \
+        1. Scale free network: makes use of the Baràbasi-Albert model, which generates the network iteratively adding 1 node each time \
+        and wiring it with the others. The wiring probability dependes on the degree of the node which the new added node can be wired to. ", 
+      imgURL: (new URL('../assets/place-holder-image.png', import.meta.url).href)
+    },
+  ]
 
   const fileInput = ref(null)
 
   const triggerFileInput = () => {
     fileInput.value.click()
   }
-
-  const complexNetworkStore = useComplexNetworkStore()
-
 
   const handleFileUpload = event => {
     selectedFile.value = event.target.files[0]
@@ -111,16 +125,17 @@
 
     <h4>or</h4>
 
-    <button class="app-button" @click="openRandomNetworkPopup">
+    <button class="app-button random-network-button" @click="openRandomNetworkPopup">
       Random network
     </button>
 
     <p v-if="error" class="error-message">{{ error }}</p>
 
     <InfoSection
-      :title="'Lorem Ipsum'"
-      :description="'Short description'"
-      :imgURL="vipnodesLogoUrl"
+      v-for="item in infoSectionsDescriptions"
+      :title=item.title
+      :description=item.description
+      :imgURL=item.imgURL
       class="info-section"
     ></InfoSection>
   </main>
@@ -211,15 +226,16 @@
   }
 
   .info-section {
-    margin-top: 30vh;
+    margin-bottom: 5vh;
   }
 
   :deep(.info-section article p) {
     text-align: left;
+    white-space: pre-line;
   }
 
   :deep(.info-section img) {
-    width: 50%;
+    width: 20%;
   }
 
   .home-main {
@@ -318,6 +334,10 @@
     display: flex;
     justify-content: flex-end;
     gap: 0.6rem;
+  }
+
+  .random-network-button {
+    margin-bottom: 40vh;
   }
 
   .app-button:disabled {
