@@ -104,7 +104,10 @@ def sgcenlr(A: csc_matrix,
     
     while flag and (realN < min(lr_max_iterations, n)):
         # if all the eigenpairs of the current batch are used then a restart is needed
+        logger.info(f"N= {N}, len(lam)={len(lam)}")
+        logger.info(f"iterations exit condition: {(realN < min(lr_max_iterations, n))}")
         if N == len(lam):
+            logger.info(f"restype: {restype}")
             
             if restype == 1:
                 # --- CASE 1: save the previous eigenvectors and compute new ones (new batch) ---
@@ -120,9 +123,25 @@ def sgcenlr(A: csc_matrix,
                 k_new = min(k, n - VA.shape[1]) # minimum between standard dimension of eigenbatch (k in options)
                 # and remaining space in memory (eigenvectors database)
                 try:
-                    evals, evecs = primme.eigsh(A, k=k_new, which='LA', ortho=VA, tol=tol, maxiter=lr_primme_max_iterations) # new batch
-                    
+                    evals, evecs = primme.eigsh(A, k=k_new, which='LA', lock=VA, tol=tol, maxiter=lr_primme_max_iterations) # new batch
+                    # doesn't accepts ortho=VA
+                    """
+                    Invalid option 'ortho' with value '[[ 3.19890675e-07 -1.76134094e-06  5.88539336e-07 ...  3.48305794e-06
+                    4.45986487e-06 -2.05417052e-05]
+                    [ 6.85239479e-07 -4.44824782e-06  1.22610042e-06 ...  7.64648625e-06
+                    9.32634783e-06 -4.31226826e-05]
+                    [ 4.29254472e-07 -6.24447590e-06  6.22382625e-07 ...  3.84339209e-06
+                    8.63982104e-06 -2.09456175e-05]
+                    ...
+                    [ 7.95668002e-08 -1.84936995e-07  9.23235918e-08 ...  3.78966949e-07
+                    3.88864080e-07 -1.48859516e-06]
+                    [ 8.90578641e-08 -4.01253781e-07  1.20303244e-07 ...  8.48809754e-07
+                    9.37422742e-07 -4.63513797e-06]
+                    [ 1.80563048e-07 -7.65454615e-07  3.01207473e-07 ...  1.57899711e-06
+                    2.07214397e-06 -1.00926277e-05]]'
+                    """
                 except ValueError as e: 
+                    logger.info(str(e))
                     warnings.warn(f"tolerance = {tol}, try reducing tolerance for eigenvalue computation")
                     break
                 except primme.PrimmeError as e:
@@ -147,7 +166,7 @@ def sgcenlr(A: csc_matrix,
                 sigma = lam[-1] # sigma is the smallest eigenvalue computed until now
                 
                 try:
-                    evals, evecs = primme.eigsh(A, k=k, targetShifts=[sigma], which='LM', tol=tol, maxiter=lr_primme_max_iterations)
+                    evals, evecs = primme.eigsh(A, k=k, sigma=sigma, which='LM', tol=tol, maxiter=lr_primme_max_iterations)
                 except primme.PrimmeError as e:
                     warnings.warn(f"PRIMME couldn't converge to restart (case 2): {e}")
                     break
@@ -183,15 +202,14 @@ def sgcenlr(A: csc_matrix,
         
         # determine the nodes in which the upper bound is larger than the m-th largest lower bound
         lis = np.where(U >= Lmax)[0]
-        logger.info(Ls)
         
         if lr_return_S:
             S_history.append((lis, L[lis], U[lis], lam[N]))
             
         # exit condition check 
         flag = (len(lis) > nnodes) and ((f_lam / n) > (lr_approximation_tol * Lmax))
-        logger.info(f"Flag: {len(lis)} > {nnodes} and {(f_lam / n)} > ({lr_approximation_tol} * {Lmax}) = {lr_approximation_tol * Lmax}")
-        
+        logger.info(f"Flag: {len(lis)} > {nnodes} and {(f_lam / n)} > ({lr_approximation_tol} * {Lmax}) = {((f_lam / n) > (lr_approximation_tol * Lmax))}")
+        logger.info(f"N={N}, ")
         N += 1
         realN += 1
 
@@ -200,6 +218,7 @@ def sgcenlr(A: csc_matrix,
     # check convergence
     if flag:
         # no convergence
+        logger.info("no convergence")
         warnings.warn("too few eigenvalues to compute VIP nodes successfully.")
         nvip = len(lis)
     else:
@@ -361,7 +380,7 @@ def commlr(A: csc_matrix,
                 
                 k_new = min(k, n_sub - VA.shape[1]) 
                 try:
-                    evals, evecs = primme.eigsh(A_sub, k=k_new, which='LA', ortho=VA, tol=tol, maxiter=lr_primme_max_iterations) 
+                    evals, evecs = primme.eigsh(A_sub, k=k_new, which='LA', lock=VA, tol=tol, maxiter=lr_primme_max_iterations) 
                 except ValueError as e: 
                     warnings.warn(f"tolerance = {tol}, try reducing tolerance for eigenvalue computation")
                     break
@@ -381,7 +400,7 @@ def commlr(A: csc_matrix,
             elif restype == 2:
                 sigma = lam[-1] 
                 try:
-                    evals, evecs = primme.eigsh(A_sub, k=k, targetShifts=[sigma], which='LM', tol=tol, maxiter=lr_primme_max_iterations)
+                    evals, evecs = primme.eigsh(A_sub, k=k, sigma=sigma, which='LM', tol=tol, maxiter=lr_primme_max_iterations)
                 except primme.PrimmeError as e:
                     warnings.warn(f"PRIMME couldn't converge to restart in case 2: {e}")
                     break
@@ -573,7 +592,7 @@ def stconvlr(A: csc_matrix,
                 k_new = min(k, n - VA.shape[1]) # minimum between standard dimension of eigenbatch (k in options)
                 # and remaining space in memory (eigenvectors database)
                 try:
-                    evals, evecs = primme.eigsh(A, k=k_new, which='LA', ortho=VA, tol=tol, maxiter=lr_primme_max_iterations) # new batch
+                    evals, evecs = primme.eigsh(A, k=k_new, which='LA', lock=VA, tol=tol, maxiter=lr_primme_max_iterations) # new batch
                     
                 except ValueError as e: 
                     warnings.warn(f"tolerance = {tol}, try reducing tolerance for eigenvalue computation")
@@ -600,7 +619,7 @@ def stconvlr(A: csc_matrix,
                 sigma = lam[-1] # sigma is the smallest eigenvalue computed until now
                 
                 try:
-                    evals, evecs = primme.eigsh(A, k=k, targetShifts=[sigma], which='LM', tol=tol, maxiter=lr_primme_max_iterations)
+                    evals, evecs = primme.eigsh(A, k=k, sigma=sigma, which='LM', tol=tol, maxiter=lr_primme_max_iterations)
                 except primme.PrimmeError as e:
                     warnings.warn(f"PRIMME couldn't converge to restart (case 2): {e}")
                     break

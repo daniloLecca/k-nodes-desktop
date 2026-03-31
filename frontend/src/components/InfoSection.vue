@@ -32,7 +32,12 @@
         for (const [key, value] of Object.entries(candidatesHistory)) {
             const iter = parseInt(key) + 1;
             usedEigenValues.push({"i": iter, "eig": value.eigenvalue})
-            bounds.push({"i": iter, "lowerBounds": value.lower_bounds, "upperBounds": value.upper_bounds})
+            bounds.push({
+                "i": iter,
+                "candidateNodes": value.candidate_nodes,
+                "lowerBounds": value.lower_bounds,
+                "upperBounds": value.upper_bounds
+            })
         }
 
         console.log(bounds)
@@ -228,12 +233,14 @@
 
         const rawData = []
         bounds.forEach(d => {
+            const candidateNodes = Array.isArray(d.candidateNodes) ? d.candidateNodes : []
             const lbArray = Array.isArray(d.lowerBounds) ? d.lowerBounds : [d.lowerBounds]
             const ubArray = Array.isArray(d.upperBounds) ? d.upperBounds : [d.upperBounds]
 
             lbArray.forEach((val, idx) => {
                 if (val !== undefined && val !== null) {
-                    const node = idx + 1
+                    const candidateNode = Number(candidateNodes[idx])
+                    const node = Number.isFinite(candidateNode) ? candidateNode : idx + 1
                     rawData.push({
                         x: d.i,
                         y: val,
@@ -245,7 +252,8 @@
             })
             ubArray.forEach((val, idx) => {
                 if (val !== undefined && val !== null) {
-                    const node = idx + 1
+                    const candidateNode = Number(candidateNodes[idx])
+                    const node = Number.isFinite(candidateNode) ? candidateNode : idx + 1
                     rawData.push({
                         x: d.i,
                         y: val,
