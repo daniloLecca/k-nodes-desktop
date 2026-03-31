@@ -67,7 +67,7 @@ def sgcenlr(A: csc_matrix,
     restype = 1  # restart type -> 1 = new eigenbatch, 2 = eigenvectors close to the smallest eigenvalue
     n = A.shape[0] # number of nodes of the network
     
-    logger.info(f"Starting sgcenlr: n={n}, k={k}, nnodes={nnodes}, lr_max_iterations={lr_max_iterations}")
+    logger.info(f"Starting sgcenlr: nnodes = {nnodes}, options = {opts}")
     
     # compute the first batch (default batch_size = k = 20)
     logger.info(f"Computing first eigenbatch with k={min(k, n)}...")
@@ -271,7 +271,7 @@ def commlr(A: csc_matrix,
         raise ValueError(f"node {i} not found, must be in the range [0, {A.shape[0]})") 
     
     if np.sum(A[:, i]) == 0:
-        raise ValueError(f"node {i} is not connected to any other node (degree 0).")
+        raise ValueError(f"node {i + 1} is not connected to any other node (degree 0).")
 
     # extracting connected component
     n_components, labels = connected_components(csgraph=A, directed=False, return_labels=True)
@@ -310,7 +310,7 @@ def commlr(A: csc_matrix,
 
     restype = 1 
     
-    logger.info(f"Starting sgcenlr: n_sub={n_sub}, k={k}, nnodes={nnodes}, lr_max_iterations={lr_max_iterations}")
+    logger.info(f"Starting commlr: nnodes = {nnodes}, options = {opts}")
     
     # compute the first batch using A_sub
     logger.info(f"Computing first eigenbatch with k={min(k, n_sub)}...")
@@ -519,7 +519,7 @@ def stconvlr(A: csc_matrix,
     restype = 1  # restart type -> 1 = new eigenbatch, 2 = eigenvectors close to the smallest eigenvalue
     n = A.shape[0] # number of nodes of the network
     
-    logger.info(f"Starting sgcenlr: n={n}, k={k}, nnodes={nnodes}, lr_max_iterations={lr_max_iterations}")
+    logger.info(f"Starting stconvlr: nnodes = {nnodes}, options = {opts}")
     
     # compute the first batch (default batch_size = k = 20)
     logger.info(f"Computing first eigenbatch with k={min(k, n)}...")

@@ -392,9 +392,9 @@ async def get_sgclr(request: LowRankSubgraphCentrality, session: dict = Depends(
     options = {
         "lr_max_iterations": request.max_iter or 300, 
         "lr_max_eigenvectors": 200,
-        "lr_approximation_tol": request.tol or 1e-3,
-        "lr_weak_convergence_tol": 0,
-        "lr_min_additional_nodes": 5,
+        "lr_approximation_tol": request.low_rank_tol or 1e-3,
+        "lr_weak_convergence_tol": 1e-1,
+        "lr_min_additional_nodes": 1,
         "lr_max_additional_nodes": 100,
         "lr_shift": request.shift if request.shift is not None else True, 
         "alpha": request.alpha or 0.0, 
@@ -439,14 +439,14 @@ async def get_commlr(request: LowRankCommunicability, session: dict = Depends(ge
     options = {
         "lr_max_iterations": request.max_iter or 300, 
         "lr_max_eigenvectors": 200,
-        "lr_approximation_tol": request.tol or 0,
-        "lr_weak_convergence_tol": 0,
+        "lr_approximation_tol": request.low_rank_tol or 1e-3,
+        "lr_weak_convergence_tol": 1e-1,
         "lr_min_additional_nodes": 1,
         "lr_max_additional_nodes": 100,
         "lr_shift": request.shift if request.shift is not None else True, 
         "alpha": request.alpha or 0.0, 
         "lr_primme_batch_size": request.batch_size or 20,
-        "lr_primme_tol": 1e-3,
+        "lr_primme_tol": 1e-5,
         "lr_primme_max_iterations": 5000,
         "lr_return_S": True  
     }
@@ -485,14 +485,14 @@ async def get_stconvlr(request: LowRankSubgraphCentrality, session: dict = Depen
     options = {
         "lr_max_iterations": request.max_iter or 300, 
         "lr_max_eigenvectors": 200,
-        "lr_approximation_tol": request.tol or 1e-1,
-        "lr_weak_convergence_tol": 0,
+        "lr_approximation_tol": request.low_rank_tol or 1e-3,
+        "lr_weak_convergence_tol": 1e-1,
         "lr_min_additional_nodes": 1,
         "lr_max_additional_nodes": 100,
         "lr_shift": request.shift if request.shift is not None else True, 
         "alpha": request.alpha or 0.0, 
         "lr_primme_batch_size": request.batch_size or 20,
-        "lr_primme_tol": 1e-3,
+        "lr_primme_tol": 1e-5,
         "lr_primme_max_iterations": 5000,
         "lr_return_S": True  
     }
@@ -535,7 +535,7 @@ async def get_sgcgauss(request: GaussSubgraphCentrality, session: dict = Depends
 
     # gauss quadrature options
     options = {
-        "gauss_tol": request.tol or 1e-3, 
+        "gauss_tol": request.gauss_tol or 1e-3, 
         "gauss_max_iterations": request.max_iter or 200,
         "gauss_largest_eigenvalue": leig,
         "alpha": request.alpha or 0.0
@@ -565,7 +565,7 @@ async def get_commgauss(request: GaussCommunicability, session: dict = Depends(g
 
     # gauss quadrature options 
     options = {
-        "gauss_tol": request.tol or 1e-3, 
+        "gauss_tol": request.gauss_tol or 1e-3, 
         "gauss_max_iterations": request.max_iter or 200,
         "alpha": request.alpha or 0.0
     }
@@ -601,7 +601,7 @@ async def get_stconvgauss(request: GaussSubgraphCentrality, session: dict = Depe
 
     # gauss quadrature options 
     options = {
-        "gauss_tol": request.tol or 1e-3, 
+        "gauss_tol": request.gauss_tol or 1e-3, 
         "gauss_max_iterations": request.max_iter or 200,
         "gauss_largest_eigenvalue": leig,
         "alpha": request.alpha or 0.0
@@ -657,7 +657,7 @@ async def get_sgchyb(request: HybridSubgraphCentrality, session: dict = Depends(
     # combine options for hybrid method
     options = {**lr_options, **gauss_options, "alpha": request.alpha or 0.0}
 
-    logger.info(f"Starting sgchyb computation with {network.shape[0]} nodes, fun={request.fun_name}, nnodes={request.nnodes}")
+    logger.info(f"Starting sgchyb computation with {network.shape[0]} nodes, fun={request.fun_name}, nnodes={request.nnodes}, LR approximation tol = {lr_options['lr_approximation_tol']}")
     try: 
         t0 = perf_counter()
         vip_nodes, vip_sgc, info, iters, allsgc, vip_lr, vipsgc_lr, realN_lr, S_history_lr, convergence = sgcenhyb(network, request.fun_name or "exp", request.nnodes or 1, options)
@@ -727,6 +727,11 @@ async def get_commhyb(request: HybridCommunicability, session: dict = Depends(ge
         return JSONResponse(
             status_code=400, 
             content={"error": "maximum number of iterations or matvecs reached, try decreasing batch size or incrementing maximum iterations number."}
+        )
+    except ValueError as e:
+        return JSONResponse(
+            status_code=400, 
+            content={"error": str(e)}
         )
 
     return {

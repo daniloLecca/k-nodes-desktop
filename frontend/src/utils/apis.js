@@ -134,6 +134,8 @@ async function sendFile (uploadedFile) {
       i: computationData.nodeComm
     }
 
+    console.log(requestBody)
+
     try {
       const response = await fetch(route, {
         method: 'POST', 

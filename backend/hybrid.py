@@ -123,7 +123,7 @@ def commhyb(A: csc_matrix,
         raise ValueError(f"node {i} not found, must be in the range [0, {A.shape[0]})") 
     
     if np.sum(A[:, i]) == 0:
-        raise ValueError(f"node {i} is not connected to any other node (degree 0).")
+        raise ValueError(f"node {i + 1} is not connected to any other node (degree 0).")
 
     ################################## START CONNECTED COMPONENT EXTRACTION ##########################
     n_components, labels = connected_components(csgraph=A, directed=False, return_labels=True)

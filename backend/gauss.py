@@ -420,6 +420,8 @@ def sgcengauss(A: csc_matrix,
     gauss_largest_eigenvalue = opts.get("gauss_largest_eigenvalue", eigsh(A, k=1, which='LA', return_eigenvectors=False)[0])
     alpha = opts.get("alpha", 0.0)
 
+    logger.info(f"Starting sgcengauss: nnodes = {nnodes}, options = {opts}")
+
     n = A.shape[0]
 
     allsg = np.zeros(n)
@@ -462,7 +464,7 @@ def commgauss(A: csc_matrix,
         raise ValueError(f"node {i} not found, must be in the range [0, {A.shape[0]})") 
     
     if np.sum(A[:, i]) == 0:
-        raise ValueError(f"node {i} is not connected to any other node (degree 0).")
+        raise ValueError(f"node {i + 1} is not connected to any other node (degree 0).")
     
     # extracting connected component
     n_components, labels = connected_components(csgraph=A, directed=False, return_labels=True)
@@ -489,6 +491,8 @@ def commgauss(A: csc_matrix,
     gauss_largest_eigenvalue = opts.get("gauss_largest_eigenvalue", eigsh(A_sub, k=1, which='LA', return_eigenvectors=False)[0])
     alpha = opts.get("alpha", 0.0)
     logger.info(alpha)
+
+    logger.info(f"Starting commgauss: nnodes = {nnodes}, options = {opts}")
 
     allcomm_local = np.zeros(n_sub)
     iters_local = np.zeros(n_sub)
@@ -552,6 +556,7 @@ def stconvgauss(A: csc_matrix,
 
     n = A.shape[0]
 
+    logger.info(f"Starting stconvgauss: nnodes = {nnodes}, options = {opts}")
     
     if n == 1:
         logger.warning("the network has only 1 node, returning trivial result")
