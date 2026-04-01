@@ -106,7 +106,7 @@ def sgcenlr(A: csc_matrix,
         # if all the eigenpairs of the current batch are used then a restart is needed
         logger.info(f"N= {N}, len(lam)={len(lam)}")
         logger.info(f"iterations exit condition: {(realN < min(lr_max_iterations, n))}")
-        if N == len(lam):
+        if N >= len(lam):
             logger.info(f"restype: {restype}")
             
             if restype == 1:
@@ -124,22 +124,7 @@ def sgcenlr(A: csc_matrix,
                 # and remaining space in memory (eigenvectors database)
                 try:
                     evals, evecs = primme.eigsh(A, k=k_new, which='LA', lock=VA, tol=tol, maxiter=lr_primme_max_iterations) # new batch
-                    # doesn't accepts ortho=VA
-                    """
-                    Invalid option 'ortho' with value '[[ 3.19890675e-07 -1.76134094e-06  5.88539336e-07 ...  3.48305794e-06
-                    4.45986487e-06 -2.05417052e-05]
-                    [ 6.85239479e-07 -4.44824782e-06  1.22610042e-06 ...  7.64648625e-06
-                    9.32634783e-06 -4.31226826e-05]
-                    [ 4.29254472e-07 -6.24447590e-06  6.22382625e-07 ...  3.84339209e-06
-                    8.63982104e-06 -2.09456175e-05]
-                    ...
-                    [ 7.95668002e-08 -1.84936995e-07  9.23235918e-08 ...  3.78966949e-07
-                    3.88864080e-07 -1.48859516e-06]
-                    [ 8.90578641e-08 -4.01253781e-07  1.20303244e-07 ...  8.48809754e-07
-                    9.37422742e-07 -4.63513797e-06]
-                    [ 1.80563048e-07 -7.65454615e-07  3.01207473e-07 ...  1.57899711e-06
-                    2.07214397e-06 -1.00926277e-05]]'
-                    """
+                
                 except ValueError as e: 
                     logger.info(str(e))
                     warnings.warn(f"tolerance = {tol}, try reducing tolerance for eigenvalue computation")
@@ -184,6 +169,10 @@ def sgcenlr(A: csc_matrix,
                 
             else:
                 raise ValueError("Wrong restart type")
+
+        if N >= len(lam):
+            warnings.warn("No new eigenpairs available after restart; stopping iteration.")
+            break
             
         f_lam = fun(lam[N], mu) # f(\lambda_i - mu) 
         v_sq = V[:, N] ** 2 # eigenvector squared (to compute f(\lambda) - v_{i}^2)
@@ -368,7 +357,7 @@ def commlr(A: csc_matrix,
     lis_local = np.array([])
     
     while flag and (realN < min(lr_max_iterations, n_sub)):
-        if N == len(lam):
+        if N >= len(lam):
             if restype == 1:
                 if VA is None:
                     VA = V
@@ -414,6 +403,10 @@ def commlr(A: csc_matrix,
                 
             else:
                 raise ValueError("Wrong restart type")
+
+        if N >= len(lam):
+            warnings.warn("No new eigenpairs available after restart; stopping iteration.")
+            break
             
         f_lam = fun(lam[N], mu) 
         v_sq = V[:, N] ** 2 
@@ -576,7 +569,7 @@ def stconvlr(A: csc_matrix,
     
     while flag and (realN < min(lr_max_iterations, n)):
         # if all the eigenpairs of the current batch are used then a restart is needed
-        if N == len(lam):
+        if N >= len(lam):
             
             if restype == 1:
                 # --- CASE 1: save the previous eigenvectors and compute new ones (new batch) ---
@@ -637,6 +630,10 @@ def stconvlr(A: csc_matrix,
                 
             else:
                 raise ValueError("Wrong restart type")
+
+        if N >= len(lam):
+            warnings.warn("No new eigenpairs available after restart; stopping iteration.")
+            break
             
         f_lam = fun(lam[N], mu) # f(\lambda_i - mu) 
         v = V[:, N]
