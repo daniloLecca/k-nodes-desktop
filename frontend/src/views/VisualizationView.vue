@@ -17,6 +17,7 @@
     const sigmaCamera = ref(null)
     const selectedNodeId = ref(null)
     const isFullscreen = ref(false)
+    const loadingState = ref('')
     let graph = null
     let isUnmounted = false
 
@@ -79,7 +80,9 @@
             // checks if the store is empty, the store is emptied every time the user goes to the home page
             if (!Object.keys(positions.currentLayer).length) {
                 nprogress.start()
+                loadingState.value = 'Loading...'
                 positions.currentLayer = await getEntireNetworkPositions()
+                loadingState.value = ''
                 nprogress.done()
             }
             console.log(positions.currentLayer)
@@ -181,6 +184,7 @@
             <p v-if="complexNetworkStore.selfLoops !== 0">
                 The network has {{ complexNetworkStore.selfLoops }} self loop(s). Self loops have been removed.
             </p>
+            <p>{{ loadingState }}</p>
         </div>
         <div id="container" ref="containerRef"></div>
         <div id="controls">

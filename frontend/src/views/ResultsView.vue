@@ -156,7 +156,7 @@
         doc.text("The VIP nodes have been identified successfully!", y, downShift())
 
         if (computationStore.computationData.compMethod === 'hyb') {
-            doc.text(`Number of nodes seeked via low rank approximation: ${computationStore.computationData.numNodesLR}`, y, downShift())
+            doc.text(`Number of nodes sought via low rank approximation: ${computationStore.computationData.numNodesLR}`, y, downShift())
             doc.text(`Number of nodes identified via low rank approximation: ${vipLowrank.value.length}`, y, downShift())
         }
 
@@ -274,11 +274,11 @@
             </p>
         </h2>
         <h2 v-else>The VIP nodes have been identified successfully!</h2>
-        <h3 v-if="computationStore.computationData.compMethod === 'hyb'"> Number of nodes seeked via low rank approximation: {{ computationStore.computationData.numNodesLR }}</h3>   
+        <h3 v-if="computationStore.computationData.compMethod === 'hyb'"> Number of nodes sought via low rank approximation: {{ computationStore.computationData.numNodesLR }}</h3>   
         <h3 v-if="computationStore.computationData.compMethod === 'hyb'"> Number of nodes identified via low rank approximation: {{ vipLowrank.length }}</h3>   
         <h3>Total number of VIP nodes identified: {{ vipNodes.length }}</h3>
         <h3>Elapsed time: {{ computationStore.computationResult.elapsed_time }}s</h3>
-        <h3 v-if="computationStore.computationData.compMethod !== 'gauss'">Number of used eigenpairs: {{ computationStore.computationResult.used_eigenpairs }}</h3>
+        <h3 v-if="computationStore.computationData.compMethod !== 'gauss'">Number of eigenpairs used: {{ computationStore.computationResult.used_eigenpairs }}</h3>
         <h3 v-if="computationStore.computationData.compMethod === 'gauss'">Mean of matrix vector products:
                {{ matrixVectorProducts.length > 0 ? (matrixVectorProducts.reduce((sum, num) => sum + num, 0)) / matrixVectorProducts.length : 0 }}
         </h3>
@@ -291,7 +291,7 @@
         <section class="export-results">
             <h3>Export results</h3>
             <div class="export-results-dropdown">
-                <label for="export-formats">Choose one of the following formats: </label>
+                <label for="export-formats">Select a format to export the results: </label>
                 <select name="export-formats" id="export-formats" v-model="exportOption">
                     <option value="pdf">PDF</option>
                     <option value="csv">CSV</option>
@@ -300,7 +300,7 @@
             </div>
             <div v-if="exportOption === 'pdf'" class="export-img-cb">
                 <input type="checkbox" name="img-pdf" id="img-pdf" v-model="exportImgCB">
-                <label for="img-pdf">Export images</label>
+                <label for="img-pdf">Include images</label>
             </div>
             <button @click="exportResultsFile()">Download {{ exportOption.toUpperCase() }}</button>
         </section>
@@ -326,7 +326,7 @@
         class="info-section"
         :class="{ 'info-section--zoomed': zoomedSection === 'scatterplot' }"
         :title="'Scatterplot of the adjacency matrix'"
-        :description="'Each blue dot represent an edge'"
+        :description="'Each blue dot represents an edge of the complex network. \n\n\n\n\nClick to zoom the entire section. '"
         :viz="'scatterplot'"
         :interaction-scale="zoomedSection === 'scatterplot' ? 2 : 1"
         @click="toggleSectionZoom('scatterplot')"
@@ -336,7 +336,9 @@
             class="info-section"
             :class="{ 'info-section--zoomed': zoomedSection === 'eigenvalues' }"
             :title="'Used eigenvalues'"
-            :description="'Only used eigenvalues are represented'"
+            :description="'Only the eigenvalues used in the computation are shown. For each iteration \
+            an eigenvalue is used (x-axis) and corresponding value is plotted in the y-axis. \
+            \nHover on the plot to more detailed information. \n\n\n\nClick to zoom the entire section'"
             :viz="'eigenvalues'"
             :interaction-scale="zoomedSection === 'eigenvalues' ? 2 : 1"
             @click="toggleSectionZoom('eigenvalues')"
@@ -345,7 +347,9 @@
             class="info-section"
             :class="{ 'info-section--zoomed': zoomedSection === 'boundsHistory' }"
             :title="'History of low rank bounds'"
-            :description="'All the bounds estimated throughout the computation'"
+            :description="'All the bounds estimated throughout the computation. For each node, the lower bound (LB) \
+            and upper bound (UB) estimate of the \'score\' throughout each iteration (x-axis) is plotted. \nIf a node is no longer \
+            eligible as a VIP node its bounds are no longer displayed. \n\nClick to zoom and hover to interact. '"
             :viz="'boundsHistory'"
             :interaction-scale="zoomedSection === 'boundsHistory' ? 2 : 1"
             @click="toggleSectionZoom('boundsHistory')"
@@ -398,7 +402,7 @@
     }
 
     .export-results-dropdown select {
-        width: 100%;
+        width: 90%;
         border: 1px solid var(--color-border);
         border-radius: 0.6rem;
         background: var(--color-background);
@@ -411,6 +415,7 @@
     .export-img-cb {
         margin-bottom: 3vh;
         display: flex;
+        align-items: center;
         gap: 0.5rem;
     }
 
@@ -464,6 +469,11 @@
         transform: scale(2);
         cursor: zoom-out;
         z-index: 2;
+    }
+
+    :deep(.info-section article p) {
+        text-align: left;
+        white-space: pre-line;
     }
 
     @media (max-width: 900px) {

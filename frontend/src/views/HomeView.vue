@@ -11,24 +11,48 @@
   const randomEdges = ref(2)
   const networkModel = ref('scale_free')
   const rewiringProbability = ref(0.01)
-  const vipnodesLogoUrl = new URL('../assets/place-holder-image.png', import.meta.url).href
+
 
   const infoSectionsDescriptions = [
     {
       title: "Why VIPNODES?",
-      description: "VIPNODES computes the most important nodes of a complex network, therefore the \'VIP\' nodes.", 
-      imgURL: (new URL('../assets/place-holder-image.png', import.meta.url).href)
+      description: "VIPNODES identifies the most important nodes in a complex network, referred to as \'VIP\' nodes. \n\n \
+      VIPNODES makes the tool available online, originally developed in MATLAB. Furthermore, this new version introduces \
+      various performance optimizations and extends the tool with new features such as network visualization, different export \
+      formats and an enhanced statistical visualization. ", 
+      imgURL: (new URL('/public/vipnodes-logo.png', import.meta.url).href)
     },
     {
       title: "How do I upload a complex network with VIPNODES?",
-      description: "At this very moment, VIPNODES supports only .mat files. The .mat file must contain exactly one variable\
-      and is must be a sparse matrix (which represents the adjacency matrix). \nA Column Sparse format is preferable but not mandatory.\
-      The complex network must be undirected, therefore the adjacency matrix has to be symmetric. \n\n \
-      In addition, you can even generate a random complex network specifying the number of nodes and starting edges. \n \
-      Two types of random network generation models are available: \n \
-        1. Scale free network: makes use of the Baràbasi-Albert model, which generates the network iteratively adding 1 node each time \
-        and wiring it with the others. The wiring probability dependes on the degree of the node which the new added node can be wired to. ", 
-      imgURL: (new URL('../assets/place-holder-image.png', import.meta.url).href)
+      description: "Currently, VIPNODES supports only .mat files. The .mat file must contain exactly one variable\
+      and it must be a sparse matrix representing the adjacency matrix. \
+      The adjacency matrix must be symmetric as the network is undirected. \n\n \
+      Alternatively, you can generate a synthetic complex network. \n \
+      Two models for random network generation are available: \n \
+        1. Scale free network: using Barabási-Albert model, generate the network adding one node at a time and connecting it \
+         to the existing ones. The connection probability depends on the degree of the already existing nodes. \n \
+        2. Small world network: using the Watts-Strogatz model, generate a lattice with the initial nodes and edges and rewire \
+        edges with a certain probability.", 
+      imgURL: (new URL('../assets/imgs/random-network-screenshot.png', import.meta.url).href)
+    },
+    {
+      title: "What can I do with VIPNODES?",
+      description: "VIPNODES identifies the most important nodes of a complex network using some of the most relevant and advanced centrality \
+      measures in complex network theory, such as the subgraph centrality, the communicability of a certain node with the rest of the \
+      network and the starting convenience. \n\nIn addition, VIPNODES offers a wide choice of options and parameters in order to maximize the results \
+      and ensure numerical precision. \n\nUnlike other tools, VIPNODES lets you explore the complex network, with a robust overview of \
+      the entire network and lets you interact with its structure. For example, by dragging the nodes or visualizing the VIP nodes.", 
+      imgURL: (new URL('../assets/imgs/visualize-vip-nodes.png', import.meta.url).href)
+    },
+    {
+      title: "Which computation methods does VIPNODES implement?",
+      description: "Various computation methods are introduced in this tool, ensuring flexibility and versatility. \
+      For example, you can directly identify the VIP nodes using Gauss quadrature rules for extreme precision or perform a low rank approximation \
+      on the complex network for a rapid analysis. \n\n What makes VIPNODES different is the possibility to identify the most important nodes with a \
+      unique two-stage approach referred to as the 'hybrid method', which first performs a low rank approximation in order to quickly determine a larger set of \
+      VIP nodes and eventually refines the computation with Gauss type quadrature rules on the few remaining nodes.\n\nThe hybrid method combines \
+      efficiency and precision and is usually considered a more convenient approach for most applications. ", 
+      imgURL: (new URL('../assets/imgs/statistics-visualization.png', import.meta.url).href)
     },
   ]
 
@@ -227,6 +251,7 @@
 
   .info-section {
     margin-bottom: 5vh;
+    width: 80%;
   }
 
   :deep(.info-section article p) {
@@ -235,7 +260,7 @@
   }
 
   :deep(.info-section img) {
-    width: 20%;
+    width: 40%;
   }
 
   .home-main {

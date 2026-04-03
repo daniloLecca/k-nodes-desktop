@@ -418,7 +418,7 @@
             const [boundKind = '', node = '?'] = String(seriesName).split(' ')
             const xLabel = Number.isFinite(iteration) ? iteration.toFixed(2) : '-'
             const yLabel = Number.isFinite(score) ? score.toExponential(3) : '-'
-            return `${boundKind} ${node} (${xLabel}; ${yLabel})`
+            return `${boundKind} ${parseInt(node) + 1} (${xLabel}; ${yLabel})`
         }
 
         function applyLineEmphasis(activeSeries = null) {
@@ -599,6 +599,7 @@
         min-width: 0;
         padding: 0 0 0 1rem;
         margin: 0;
+        background-color: var(--color-background-soft);
     }
 
     .media-box {
@@ -608,6 +609,7 @@
         width: clamp(240px, 20vw, 300px);
         max-width: 100%;
         cursor: default;
+        overflow: hidden;
     }
 
     img {
@@ -618,6 +620,8 @@
 
     .chart-box {
         aspect-ratio: 1 / 1;
+        border: 1px solid var(--color-border);
+        border-radius: 1rem;
     }
 
     @media (max-width: 768px) {

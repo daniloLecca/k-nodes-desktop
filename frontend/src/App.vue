@@ -138,7 +138,7 @@ const computationStore = useComputationStore()
   box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
 }
 
-@media (max-width: 768px) {
+@media (max-width: 1302px) {
   .top-nav {
     row-gap: 1rem;
     justify-content: center;
