@@ -1,7 +1,9 @@
 
 # VIPNODES
 
-An online tool for seeking the most important nodes of a network through the computation of centrality measures in undirected, unweighted complex networks.
+![Home Page](./frontend/src/assets/imgs/home-page-screenshot.png)
+
+> An online tool for seeking the most important nodes of a network through the computation of centrality measures in undirected, unweighted complex networks.
 
 ## Description
 
@@ -25,14 +27,46 @@ All the data working data of the web-app is stored with Redis, an high performan
 Note that the database in this case is not persistent since there is no need to save the network persistently. Future versions may implement a persistent storage if needed.
 
 ## Usage
-This project makes use of *Nginx* as a reverse proxy, in order to serve the static Vue files and the API calls whenever required. In addition, only the port 80 is exposed making the software safer. At the moment the ports 5173 for frontend and 8000 for backend are avalaible for dev as well, they won't be available once the software is in production.
 
-Generally, is strongly suggested to make the HTTP request to this single endpoint: 
-```markdown
-localhost:80/
-```
+![Random Network Generation Popup](./frontend/src/assets/imgs/random-generation-popup.png)
 
-In case we need to access the API: 
-```markdown
-localhost:80/api/
-```
+1. Upload a complex network: 
+    * Using a **file** (.mat file containing the sparse adjacency matrix)
+    * Generating a *scale free* or *small world* network
+2. Visualize the complex network, supported interactions: 
+    * Nodes dragging
+    * Node clicking to show node degree
+    * Zoom, unzoom or reset camera zoom 
+    * Full screen visualization
+3. Analyse the complex network: 
+    * Navigate to `Analysis`
+    * Fill out the form with your parameters
+    * Compute and wait (you can even cancel the computation)
+4. See the results of the computation: 
+
+### Results
+
+![Computation Results](./frontend/src/assets/imgs/computation-results-screenshot.png)
+
+> **Observe the computation parameters and results**
+
+* * *
+### Export
+
+![Export Results](./frontend/src/assets/imgs/export-results-screenshot.png)
+
+> **Export the results in PDF, CSV or JSON. Do not include images if too many iterations were needed because the SVGs become too dense to export.**
+
+* * *
+### Visualize scatterplot and eigenvalues
+
+![Scatterplot EigenValues](./frontend/src/assets/imgs/scatter-plot-eigenvalues-screenshot.png)
+
+> **Visualize which are the VIP nodes and what is their *'score'*. Observe which eigenvalues have been used, what is their value and their distribution. Scroll over the graph to zoom and click on the description of the section to zoom the entire section.**
+
+* * *
+### Observe bounds evolution
+
+![Bounds History](./frontend/src/assets/imgs/bounds-history-screenshot.png)
+
+>**See the evolution of lower and upper bounds throughout the computation. Hover on the plots to see the corresponding values.**

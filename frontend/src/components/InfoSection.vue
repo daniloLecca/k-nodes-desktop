@@ -39,10 +39,9 @@
                 "upperBounds": value.upper_bounds
             })
         }
-
-        console.log(bounds)
     }
 
+    // loads the scatterplot of the adjacency matrix
     async function loadPlot() {
         const res = await fetch("/api/plot", {
             method: "POST", 

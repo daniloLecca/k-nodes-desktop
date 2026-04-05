@@ -97,6 +97,7 @@
             })
             sigmaCamera.value = sigmaInstance.value.getCamera()
 
+            // check if node is being clicked 
             sigmaInstance.value.on("downNode", e => {
                 isDragging = true
                 draggedNode = e.node
@@ -104,6 +105,7 @@
                 if (!sigmaInstance.value.getCustomBBox()) sigmaInstance.value.setCustomBBox(sigmaInstance.value.getBBox())
             })
 
+            // node dragging
             sigmaInstance.value.on("moveBody", ({ event }) => {
                 if (!isDragging || !draggedNode) return;
 
@@ -117,6 +119,7 @@
                 event.original.stopPropagation();
             });
 
+            // node release
             const handleUp = () => {
                 if (draggedNode) {
                     graph.removeNodeAttribute(draggedNode, "highlighted");
@@ -133,6 +136,7 @@
                 : []
 
             // every time the page is loaded, the rendering gets refreshed
+            // make orange the VIP nodes and update their labels
             sigmaInstance.value.setSetting("nodeReducer", (nodeId, data) => {
                 const isVip = vipNodes.includes(Number(nodeId))
                 const isSelected = selectedNodeId.value === nodeId
@@ -151,6 +155,7 @@
                 }
             })
 
+            // when another node is clicked the previous clicked node doesn't show its degree
             sigmaInstance.value.on("clickNode", ({ node }) => {
                 selectedNodeId.value = selectedNodeId.value === node ? null : node
                 sigmaInstance.value.refresh()

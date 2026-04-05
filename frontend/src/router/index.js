@@ -52,19 +52,19 @@ router.beforeEach(async (to, _from, next) => {
     const complexNetworkStore = useComplexNetworkStore()
     const computationStore = useComputationStore()
     const positionsStore = usePositionsStore()
-    console.log(complexNetworkStore.token)
 
     if (to.path === '/') {
+      // if the user navigates to the home, the network is deleted
       positionsStore.currentLayer = {}
       computationStore.computationResult = {}
       computationStore.computationData = {}
     }
 
     if (to.path === '/results' && computationStore.isComputationDataEmpty) {
-      console.log("going to results without having computed anything")
       return next({ path: '/'})
     }
 
+    // if no network was uploaded then forbid the navigation 
     if (to.matched.some(r => r.meta.requiresNetwork)) {
       if (!complexNetworkStore.token || typeof complexNetworkStore.token !== 'string' || complexNetworkStore.token.trim() === '') {
               return next({ path: '/'})

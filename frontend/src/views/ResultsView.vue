@@ -13,7 +13,8 @@
     const additionalNodes = ref(0)
     const zoomedSection = ref(null)
     const exportOption = ref('pdf')
-    const exportImgCB = ref(false)
+    const exportImgCB = ref(false) // export images in pdf?
+    // if not array -> empty array 
     const vipNodes = computed(() => Array.isArray(computationStore.computationResult?.vip_nodes)
         ? computationStore.computationResult.vip_nodes
         : [])
@@ -35,6 +36,7 @@
         return []
     })
 
+    // infer convergence 
     if (computationStore.computationData.compMethod === 'lr') {
         if (vipNodes.value.length === computationStore.computationData.numNodes) {
             lowRankConvergence.value = "Strong convergence"
@@ -55,10 +57,8 @@
         }
     }
 
-    console.log(lowRankConvergence.value)
-
+    // improvement of labels from computation parameters labels
     function processComputationDataLabels (d) {
-        console.log(d)
         let updatedD = {
             "Computation method": d.compMethod === 'gauss' ? 'Gauss quadrature' : (d.compMethod === 'hyb' ? 'Hybrid method' : 'Low rank approximation'), 
             "Centrality measure": d.cenIndex === 'comm' ? 'Communicability' : (d.cenIndex === 'sgcen' ? 'Subgraph centrality' : 'Starting convenience'), 

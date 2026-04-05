@@ -117,7 +117,6 @@ async function sendFile (uploadedFile) {
     computeMeasuresController = new AbortController()
 
     const route = `/api/${computationData["cenIndex"]}${computationData.compMethod}`
-    console.log(route)
 
     let error = ''
 
@@ -133,8 +132,6 @@ async function sendFile (uploadedFile) {
       low_rank_tol: computationData.LRTol, 
       i: computationData.nodeComm
     }
-
-    console.log(requestBody)
 
     try {
       const response = await fetch(route, {
@@ -165,9 +162,6 @@ async function sendFile (uploadedFile) {
         computationData,
         computationResult: result,
       })
-
-      console.log(result)
-
 
     } catch (err) {
       if (err?.name === 'AbortError') {

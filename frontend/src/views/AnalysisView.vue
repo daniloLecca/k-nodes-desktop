@@ -6,7 +6,7 @@
     import router from '@/router';
     import nprogress, { trickle } from 'nprogress';
 
-    const TRICKLE_COEFFICIENT = 10
+    const TRICKLE_COEFFICIENT = 10 // used for loading bar progress
 
     const complexNetworkStore = useComplexNetworkStore()
     const computationStore = useComputationStore()
@@ -59,7 +59,6 @@
             shift: spectrumShift.value,
             alphaRes: alphaForResolvent.value 
         }
-        console.log(computationData)
 
         isComputing.value = true
         error.value = ''
@@ -77,10 +76,12 @@
 
         error.value = result.error
 
+        // if there is no error in the analysis -> display results
         if (error.value === '')
             router.push('/results')
     }
 
+    // make sure that the parameters are valid, otherwise disable the submit button
     const parametersValid = computed(() => {
         if (numberOfNodes.value > complexNetworkStore.nnodes || numberOfNodes.value <= 0) return false
         if (numberOfIterationsLowRank.value > complexNetworkStore.nnodes || numberOfIterationsLowRank.value <= 0) return false

@@ -12,7 +12,7 @@
   const networkModel = ref('scale_free')
   const rewiringProbability = ref(0.01)
 
-
+  // descriptions for info sections
   const infoSectionsDescriptions = [
     {
       title: "Why VIPNODES?",
@@ -56,6 +56,7 @@
     },
   ]
 
+  // FILE INPUT HANDLING
   const fileInput = ref(null)
 
   const triggerFileInput = () => {
