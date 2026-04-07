@@ -1,8 +1,98 @@
 from sknetwork.clustering import Louvain
 from scipy.sparse import csc_matrix
+from scipy.io import loadmat
 from collections import defaultdict
 from pydantic import BaseModel, model_validator
 from typing import Literal
+from networkx import read_gexf, to_scipy_sparse_array, Graph
+from xml.etree.ElementTree import parse
+import logging
+
+logger = logging.getLogger(__name__) # for printing logs in dev
+logging.basicConfig(level=logging.INFO)
+
+def extract_complex_network_from_file(contents, format: Literal[".mat", ".gexf"]) -> csc_matrix:
+    """
+    :param contents: file-like object
+    :param format: format of the file, must be '.mat' or '.gexf'
+
+    :return network: csc_matrix of complex network
+    """ 
+
+    if (format == ".mat"): 
+        mat_data = loadmat(contents)
+        mat_data = {k: v for k, v in mat_data.items() if not k.startswith('__')}
+
+        # check that the file contains exactly one variable
+        if len(mat_data) != 1:
+            raise ValueError("the file must contain exactly one variable. ")
+
+        # get the adjacency matrix and normalize to scipy sparse matrix format
+        _, network = next(iter(mat_data.items()))
+        network = csc_matrix(network)
+        if (network.shape[0] != network.shape[1]) or ((network != network.T).nnz != 0): 
+            raise ValueError("the adjacency matrix must represent an undirected graph")
+    
+        return network
+    else:
+
+        try:
+            # read the gexf file
+            # G = read_gexf("graphs/WebAtlas_EuroSiS.gexf")
+            # G = read_gexf("graphs/yeast.gexf")
+            G = read_gexf(contents)
+        except Exception as e_read:
+            # fallback parser for namespace incompatibilities
+            try:
+                if hasattr(contents, "seek"):
+                    contents.seek(0)
+
+                tree = parse(contents)
+                root = tree.getroot()
+
+                # empty graph
+                G = Graph()
+
+                # parse by local tag name, so any XML namespace is supported.
+                for elem in root.iter():
+                    tag = elem.tag.split('}', 1)[-1]
+
+                    if tag == 'node':
+                        node_id = elem.get('id')
+                        if node_id is not None:
+                            G.add_node(node_id)
+
+                    if tag == 'edge':
+                        source = elem.get('source')
+                        target = elem.get('target')
+                        if source is not None and target is not None:
+                            G.add_edge(source, target)
+            except Exception as e_parse:
+                raise ValueError(
+                    f"unable to read the gexf file. networkx parser error: {e_read}. "
+                    f"xml fallback parser error: {e_parse}"
+                )
+
+        # ensure a non-empty graph before converting to sparse matrix
+        if G.number_of_nodes() == 0 and G.number_of_edges() == 0:
+            raise ValueError(
+                "the uploaded gexf graph is empty or could not be parsed: Graph has no nodes or edges"
+            )
+
+        # convert to scipy csc_matrix
+        A = to_scipy_sparse_array(Graph(G), weight=None, format="csc")
+
+        if (A.shape[0] != A.shape[1]):
+            raise ValueError("the adjacency matrix must be a square matrix")
+
+        # make the adjacency matrix symmetric and unweighted
+        network = csc_matrix((A + A.T > 0).astype(int))
+
+    # if the matrix is not square or is not symmetric -> not valid adjacency matrix 
+    if (network.shape[0] != network.shape[1]) or ((network != network.T).nnz != 0): 
+        raise ValueError("the adjacency matrix must represent an undirected graph")
+    
+    return network
 
 
 def get_clusters(adj_matrix: csc_matrix) -> dict:

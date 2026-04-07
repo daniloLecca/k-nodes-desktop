@@ -58,6 +58,7 @@ router.beforeEach(async (to, _from, next) => {
       positionsStore.currentLayer = {}
       computationStore.computationResult = {}
       computationStore.computationData = {}
+      complexNetworkStore.token = ''
     }
 
     if (to.path === '/results' && computationStore.isComputationDataEmpty) {

@@ -71,9 +71,16 @@
     }
 
     onMounted(async () => {
+        const container = containerRef.value
+        const TRICKLE_COEFFICIENT = 10 // used for loading bar progress
+        nprogress.configure({
+            showSpinner: true,
+            minimum: 0.08,
+            trickleSpeed: complexNetworkStore.nnodes / TRICKLE_COEFFICIENT, 
+            trickleRate: 0.02
+        })
         document.addEventListener('fullscreenchange', handleFullscreenChange)
 
-        const container = containerRef.value
         if (!(container instanceof HTMLElement)) return
 
         try {
@@ -93,7 +100,7 @@
 
             sigmaInstance.value = new Sigma(graph, container, {
                 labelRenderedSizeThreshold: 100,
-                defaultNodeColor: "yellow"
+                defaultNodeColor: "yellow", 
             })
             sigmaCamera.value = sigmaInstance.value.getCamera()
 

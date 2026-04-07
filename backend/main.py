@@ -2,7 +2,6 @@ import io
 import os
 import redis
 import numpy as np
-import scipy
 import logging
 import pickle
 import generate as gnt
@@ -18,6 +17,7 @@ from starlette.responses import Response
 from utils import get_clusters, ClusterRequest, ExpRequest, ResRequest, RandomComplexNetworkRequest
 from utils import LowRankSubgraphCentrality, LowRankCommunicability, GaussSubgraphCentrality, GaussCommunicability
 from utils import HybridSubgraphCentrality, HybridCommunicability
+from utils import extract_complex_network_from_file
 from gauss import gauss_exp, gauss_res, sgcengauss, commgauss, stconvgauss
 from lowrank import sgcenlr, commlr, stconvlr
 from hybrid import sgcenhyb, commhyb, stconvhyb
@@ -135,49 +135,36 @@ async def overview(file: UploadFile = File(...)):
     global clusters, network, leig
     
     # check that the file sent in the body has .mat extension
-    if not file.filename.endswith('.mat'):
+    if not (file.filename.endswith('.mat') or file.filename.endswith('.gexf')):
         return JSONResponse(
             status_code=400,
-            content={"error": "the file muste have .mat extension"}
+            content={"error": "the file must have .mat or .gexf extension"}
         )
     
     try:
         # read file content
         contents = await file.read()
+        contents = io.BytesIO(contents)
         
         # loadfile
-        mat_data = scipy.io.loadmat(io.BytesIO(contents))
-        
-        # remove MATLAB headers
-        mat_data = {k: v for k, v in mat_data.items() if not k.startswith('__')}
-
-        # check that the file contains exactly one variable
-        if len(mat_data) != 1:
-            return JSONResponse(
-                status_code=400,
-                content={"error": "the file must contain exactly one variable"}
-            )
-
-        # get the adjacency matrix
-        _, adj = next(iter(mat_data.items()))
-
-        # if the matrix is not square or is not symmetric -> not valid adjacency matrix 
-        if (adj.shape[0] != adj.shape[1]) or ((adj != adj.T).nnz != 0): 
+        format = ".mat" if file.filename.endswith('.mat') else ".gexf"
+        try: 
+            network = extract_complex_network_from_file(contents=contents, format=format)
+        except Exception as e: 
             return JSONResponse(
                 status_code=400,
                 content={
-                    "error": "the adjacency matrix must represent an undirected graph"
+                    "error": str(e)
                 }
             )
 
         number_of_self_loops: int = 0
         # convert the sparse matrix in column sparse format if it's not already
-        if sparse.issparse(adj):
-            adj = adj.tocsc()
-            number_of_self_loops = np.sum(adj.diagonal())
-            adj.setdiag(0) # all the elements in the diagonal will be equal to 0
-            adj.eliminate_zeros() # delete the zero entries
-            network = adj
+        if sparse.issparse(network):
+            network = network.tocsc()
+            number_of_self_loops = np.sum(network.diagonal())
+            network.setdiag(0) # all the elements in the diagonal will be equal to 0
+            network.eliminate_zeros() # delete the zero entries
         else:
             return JSONResponse(
                 status_code=400,
@@ -187,7 +174,7 @@ async def overview(file: UploadFile = File(...)):
             )
         
         leig = eigsh(network, k=1, which='LA', return_eigenvectors=False)[0] # compute the largest eigenvalue
-        clusters = get_clusters(adj)
+        clusters = get_clusters(network)
         size_of_clusters = {}
 
         # for each cluster compute the size of the cluster
@@ -217,8 +204,8 @@ async def overview(file: UploadFile = File(...)):
         return {
             "token": token,
             "filename": file.filename,
-            "nodes": int(list(adj.shape)[0]),
-            "edges": int(adj.nnz), 
+            "nodes": int(list(network.shape)[0]),
+            "edges": int(network.nnz), 
             "largest eigenvalue": leig,
             "max value for alpha": float(1 / leig),
             "self loops": int(number_of_self_loops),

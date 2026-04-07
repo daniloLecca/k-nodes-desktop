@@ -24,7 +24,7 @@
     },
     {
       title: "How do I upload a complex network with VIPNODES?",
-      description: "Currently, VIPNODES supports only .mat files. The .mat file must contain exactly one variable\
+      description: "Currently, VIPNODES supports only .mat files and .gexf. The .mat file must contain exactly one variable\
       and it must be a sparse matrix representing the adjacency matrix. \
       The adjacency matrix must be symmetric as the network is undirected. \n\n \
       Alternatively, you can generate a synthetic complex network. \n \
@@ -113,13 +113,14 @@
   <main class="home-main">
     <RouterLink to="/"><h1>VIPNODES</h1></RouterLink>
     <h2>VIPNODES is an online tool for computing centrality measures in undirected, unweighted complex networks.</h2>
-    <h4>Load a .mat file</h4>
+    <p v-if="error" class="error-message">{{ error }}</p>
+    <h4>Load a .mat or .gexf file</h4>
     <input 
       type='file' 
       ref="fileInput" 
       style="display: none" 
       @change='handleFileUpload' 
-      accept=".mat"
+      accept=".mat, .gexf"
     />
 
     <button 
@@ -153,8 +154,6 @@
     <button class="app-button random-network-button" @click="openRandomNetworkPopup">
       Random network
     </button>
-
-    <p v-if="error" class="error-message">{{ error }}</p>
 
     <InfoSection
       v-for="item in infoSectionsDescriptions"
