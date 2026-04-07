@@ -6,12 +6,14 @@ from pydantic import BaseModel, model_validator
 from typing import Literal
 from networkx import read_gexf, to_scipy_sparse_array, Graph
 from xml.etree.ElementTree import parse
+import numpy as np
 import logging
+import json
 
 logger = logging.getLogger(__name__) # for printing logs in dev
 logging.basicConfig(level=logging.INFO)
 
-def extract_complex_network_from_file(contents, format: Literal[".mat", ".gexf"]) -> csc_matrix:
+def extract_complex_network_from_file(contents, format: Literal[".mat", ".gexf", ".json"]) -> csc_matrix:
     """
     :param contents: file-like object
     :param format: format of the file, must be '.mat' or '.gexf'
@@ -33,6 +35,26 @@ def extract_complex_network_from_file(contents, format: Literal[".mat", ".gexf"]
         if (network.shape[0] != network.shape[1]) or ((network != network.T).nnz != 0): 
             raise ValueError("the adjacency matrix must represent an undirected graph")
     
+        return network
+
+    elif(format == ".json"): 
+        contents = json.load(contents)
+        nnodes = len(contents["nodes"])
+        nedges = len(contents["edges"])
+
+        node_keys = [n["key"] for n in contents["nodes"]]
+        key_to_index = {k: i for i, k in enumerate(node_keys)} # the file could have "holes" in nodes id
+
+        data = np.ones(nedges, dtype=int)
+        # sometimes the id of each node is a floating number
+        rows, cols = zip(*[(int(float(key_to_index[edge["source"]])), int(float(key_to_index[edge["target"]]))) for edge in contents["edges"]])
+
+        network = csc_matrix((data, (rows, cols)), shape=(nnodes, nnodes))
+        network = (network + network.T > 0).astype(int) 
+
+        if (network.shape[0] != network.shape[1]) or ((network != network.T).nnz != 0): 
+            raise ValueError("the adjacency matrix must represent an undirected graph")
+
         return network
     else:
 

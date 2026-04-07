@@ -24,8 +24,8 @@
     },
     {
       title: "How do I upload a complex network with VIPNODES?",
-      description: "Currently, VIPNODES supports only .mat files and .gexf. The .mat file must contain exactly one variable\
-      and it must be a sparse matrix representing the adjacency matrix. \
+      description: "Currently, VIPNODES supports only .mat, .gexf or .json files. The .mat file must contain exactly one variable\
+      and it must be a sparse matrix representing the adjacency matrix. The json must follow the Graphology format. \
       The adjacency matrix must be symmetric as the network is undirected. \n\n \
       Alternatively, you can generate a synthetic complex network. \n \
       Two models for random network generation are available: \n \
@@ -114,13 +114,13 @@
     <RouterLink to="/"><h1>VIPNODES</h1></RouterLink>
     <h2>VIPNODES is an online tool for computing centrality measures in undirected, unweighted complex networks.</h2>
     <p v-if="error" class="error-message">{{ error }}</p>
-    <h4>Load a .mat or .gexf file</h4>
+    <h4>Load a .mat, .gexf or .json file</h4>
     <input 
       type='file' 
       ref="fileInput" 
       style="display: none" 
       @change='handleFileUpload' 
-      accept=".mat, .gexf"
+      accept=".mat, .gexf, .json"
     />
 
     <button 
@@ -281,14 +281,14 @@
 
   .error-message {
     margin-top: 0.75rem;
-    color: #c62828;
+    color: var(--color-error);
     font-weight: 600;
   }
 
   .popup-overlay {
     position: fixed;
     inset: 0;
-    background: rgba(0, 0, 0, 0.55);
+    background: var(--color-overlay);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -301,7 +301,7 @@
     background: var(--color-background-soft);
     border: 1px solid var(--color-border);
     border-radius: 1rem;
-    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+    box-shadow: 0 20px 40px var(--color-shadow-lg);
     padding: 1.2rem;
     display: flex;
     flex-direction: column;

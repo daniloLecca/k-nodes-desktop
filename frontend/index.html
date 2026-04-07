@@ -2,6 +2,18 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8">
+    <script>
+      (() => {
+        const savedTheme = localStorage.getItem('vipnodes-theme')
+        const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches
+        const theme = savedTheme || (prefersDark ? 'dark' : 'light')
+        // if theme was not updated with the toggle -> look in localStorage and update global variable
+
+        // global variable definition
+        document.documentElement.dataset.theme = theme
+        document.documentElement.style.colorScheme = theme
+      })()
+    </script>
     <link rel="icon" type="image/png" sizes="32x32" href="/vipnodes-logo.png?v=2">
     <link rel="shortcut icon" href="/vipnodes-logo.png?v=2">
     <link rel="apple-touch-icon" href="/vipnodes-logo.png?v=2">

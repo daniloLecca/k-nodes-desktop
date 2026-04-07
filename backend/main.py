@@ -135,10 +135,10 @@ async def overview(file: UploadFile = File(...)):
     global clusters, network, leig
     
     # check that the file sent in the body has .mat extension
-    if not (file.filename.endswith('.mat') or file.filename.endswith('.gexf')):
+    if not (file.filename.endswith('.mat') or file.filename.endswith('.gexf') or file.filename.endswith('.json')):
         return JSONResponse(
             status_code=400,
-            content={"error": "the file must have .mat or .gexf extension"}
+            content={"error": "the file must have .mat, .gexf or .json extension"}
         )
     
     try:
@@ -147,14 +147,20 @@ async def overview(file: UploadFile = File(...)):
         contents = io.BytesIO(contents)
         
         # loadfile
-        format = ".mat" if file.filename.endswith('.mat') else ".gexf"
+        if file.filename.endswith('.mat'):
+            format = ".mat"
+        elif file.filename.endswith('.json'):
+            format = ".json"
+        else:
+            format = ".gexf"
+
         try: 
             network = extract_complex_network_from_file(contents=contents, format=format)
         except Exception as e: 
             return JSONResponse(
                 status_code=400,
                 content={
-                    "error": str(e)
+                    "error": "file not valid"
                 }
             )
 
