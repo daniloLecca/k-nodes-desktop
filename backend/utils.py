@@ -1,4 +1,4 @@
-from sknetwork.clustering import Louvain
+from sknetwork.hierarchy import LouvainHierarchy, cut_straight
 from scipy.sparse import csc_matrix
 from scipy.io import loadmat
 from collections import defaultdict
@@ -6,6 +6,7 @@ from pydantic import BaseModel, model_validator
 from typing import Literal
 from networkx import read_gexf, to_scipy_sparse_array, Graph
 from xml.etree.ElementTree import parse
+import math
 import numpy as np
 import logging
 import json
@@ -126,8 +127,23 @@ def get_clusters(adj_matrix: csc_matrix) -> dict:
     :return: {cluster1: [node1, node2, ..., nodeN], cluster2: [node3, node4, ..., nodeM], ...}
     :rtype: dict
     """
-    louvain = Louvain()
-    labels = louvain.fit_predict(adj_matrix)
+
+    n_nodes = adj_matrix.shape[0]
+    if n_nodes == 0:
+        return {}
+
+    # can fail on very small or complex networks.
+    # in that case, fall back to a single cluster containing all nodes.
+    if n_nodes < 3 or adj_matrix.nnz == 0:
+        return {0: list(range(n_nodes))}
+
+    louvain = LouvainHierarchy()
+    try:
+        hierarchy = louvain.fit_predict(adj_matrix)
+        labels = cut_straight(hierarchy, n_clusters=math.floor(math.sqrt(n_nodes)))
+    except Exception as error:
+        logger.warning("Falling back to a single cluster: %s", error)
+        return {0: list(range(n_nodes))}
 
     clusters = defaultdict(list)
 

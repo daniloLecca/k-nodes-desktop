@@ -187,6 +187,8 @@ async def overview(file: UploadFile = File(...)):
         for cluster in clusters.keys():
             size_of_clusters[cluster] = len(clusters[cluster])
 
+        logger.info(f"\n\n{size_of_clusters}\n\n")
+
         # generate the unique token
         token = token_urlsafe(32)
         

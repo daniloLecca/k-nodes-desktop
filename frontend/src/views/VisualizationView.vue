@@ -31,19 +31,16 @@
     function resetZoom () {
         if (!sigmaCamera.value) return
         sigmaCamera.value.animatedReset({ duration: 600})
-        console.log(sigmaCamera.value)
     }
 
     function zoomIn () {
         if (!sigmaCamera.value) return
         sigmaCamera.value.animatedZoom({ duration: 600})
-        console.log(sigmaCamera.value)
     }
 
     function zoomOut () {
         if (!sigmaCamera.value) return
         sigmaCamera.value.animatedUnzoom({ duration: 600})
-        console.log(sigmaCamera.value)
     }
 
     async function fullScreenMode () {
@@ -103,6 +100,9 @@
                 defaultNodeColor: "yellow", 
             })
             sigmaCamera.value = sigmaInstance.value.getCamera()
+            sigmaCamera.value.on("updated", () => {
+                console.log(sigmaCamera.value.ratio)
+            })
 
             // check if node is being clicked 
             sigmaInstance.value.on("downNode", e => {
@@ -165,7 +165,8 @@
             // when another node is clicked the previous clicked node doesn't show its degree
             sigmaInstance.value.on("clickNode", ({ node }) => {
                 selectedNodeId.value = selectedNodeId.value === node ? null : node
-                sigmaInstance.value.refresh()
+                
+                sigmaInstance.value.refresh({ skipIndexation: true })
             })
             
             console.log({"nodes":graph.order, "edges": graph.size})

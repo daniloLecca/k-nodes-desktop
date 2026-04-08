@@ -21,7 +21,7 @@ def entire_network_layout(network: csc_matrix) -> dict:
     # Graphology serialized instance has the following format: 
     nodes = list(map(lambda node: {"key": str(node["id"]), "attributes": {"x": node["x"], "y": node["y"], "size": 3, "label": "Node " + str(node["id"] + 1)}}, layout["nodes"]))
     logger.info(nodes)
-    edges = list(map(lambda edge: {"source": str(edge["source"]), "target": str(edge["target"]), "weight": 1, "size": 1}, layout["edges"]))
+    edges = list(map(lambda edge: {"source": str(edge["source"]), "target": str(edge["target"]), "weight": 1, "size": 0.5}, layout["edges"]))
 
     logger.info(f"Elapsed time with iterations = {iters}: {perf_counter() - t0}s")
     return {"nodes": nodes, "edges": edges}
