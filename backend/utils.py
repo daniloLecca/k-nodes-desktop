@@ -145,7 +145,7 @@ def get_clusters(adj_matrix: csc_matrix) -> dict:
     if nnz >= 1_000_000:
         return {0: list(range(n))}
 
-    louvain = LouvainIteration()
+    louvain = LouvainIteration(depth=2, n_aggregations=10)
     try:
         hierarchy = louvain.fit_predict(adj_matrix)
         labels = cut_balanced(hierarchy, max_cluster_size=min(n, 700))
@@ -159,17 +159,17 @@ def get_clusters(adj_matrix: csc_matrix) -> dict:
         clusters[int(cluster_id)].append(node_id)
 
     clusters_adj_matrix = estimate_links_between_clusters(A=adj_matrix, labels=labels)
+    logger.info("Computed links between clusters")
     clusters_adj_matrix.setdiag(0)
     clusters_layout = entire_network_layout(clusters_adj_matrix)
-
-    logger.info(f"\n\nClusters layout:\n {clusters_layout['nodes']}, \n\n{clusters_layout['edges']}")
+    logger.info("Computed position of clusters")
+    logger.info(f"Clusters layout: {len(clusters_layout['nodes'])} nodes and {len(clusters_layout['edges'])} edges")
 
     return dict(clusters_layout)
 
 def estimate_links_between_clusters(A: csc_matrix, labels: list) -> csc_matrix: 
     nnodes = A.shape[0]
     n_clusters = max(labels) + 1
-    logger.info(nnodes)
 
     M = csc_matrix((np.ones(nnodes), (np.arange(nnodes), labels)), shape=(nnodes, n_clusters))
 

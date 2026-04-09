@@ -206,7 +206,7 @@ async def overview(file: UploadFile = File(...)):
             "token": token,
             "filename": file.filename,
             "nodes": int(list(network.shape)[0]),
-            "edges": int(network.nnz), 
+            "edges": int(network.nnz // 2), # the matrix is symmetric
             "largest eigenvalue": leig,
             "max value for alpha": float(1 / leig),
             "self loops": int(number_of_self_loops),
