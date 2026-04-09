@@ -181,13 +181,6 @@ async def overview(file: UploadFile = File(...)):
         
         leig = eigsh(network, k=1, which='LA', return_eigenvectors=False)[0] # compute the largest eigenvalue
         clusters = get_clusters(network)
-        size_of_clusters = {}
-
-        # for each cluster compute the size of the cluster
-        for cluster in clusters.keys():
-            size_of_clusters[cluster] = len(clusters[cluster])
-
-        logger.info(f"\n\n{size_of_clusters}\n\n")
 
         # generate the unique token
         token = token_urlsafe(32)
@@ -217,8 +210,8 @@ async def overview(file: UploadFile = File(...)):
             "largest eigenvalue": leig,
             "max value for alpha": float(1 / leig),
             "self loops": int(number_of_self_loops),
-            "clusters": size_of_clusters,
-            "numberOfClusters": len(size_of_clusters.keys())
+            "clusters": clusters,
+            "numberOfClusters": len(clusters.keys())
         }
         
         # generic error
@@ -325,10 +318,6 @@ def get_random_complex_network(request: RandomComplexNetworkRequest):
 
     leig = eigsh(network, k=1, which='LA', return_eigenvectors=False)[0]
     clusters = get_clusters(network)
-    size_of_clusters = {}
-        # for each cluster compute the size of the cluster
-    for cluster in clusters.keys():
-        size_of_clusters[cluster] = len(clusters[cluster])
 
     # generate the unique token
     token = token_urlsafe(32)
@@ -360,7 +349,7 @@ def get_random_complex_network(request: RandomComplexNetworkRequest):
         "max value for alpha": float(1 / leig),
         "self loops": 0,
         "clusters": clusters,
-        "numberOfClusters": len(size_of_clusters.keys())
+        "numberOfClusters": len(clusters.keys())
     }
 
 @app.post("/api/plot")

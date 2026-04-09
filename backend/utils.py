@@ -1,4 +1,4 @@
-from sknetwork.hierarchy import LouvainHierarchy, cut_straight
+from sknetwork.hierarchy import LouvainIteration, cut_balanced
 from scipy.sparse import csc_matrix
 from scipy.io import loadmat
 from collections import defaultdict
@@ -6,6 +6,7 @@ from pydantic import BaseModel, model_validator
 from typing import Literal
 from networkx import read_gexf, to_scipy_sparse_array, Graph
 from xml.etree.ElementTree import parse
+from layout import entire_network_layout
 import math
 import numpy as np
 import logging
@@ -128,29 +129,53 @@ def get_clusters(adj_matrix: csc_matrix) -> dict:
     :rtype: dict
     """
 
-    n_nodes = adj_matrix.shape[0]
-    if n_nodes == 0:
+    n = adj_matrix.shape[0]
+    nnz = adj_matrix.nnz
+
+    if n == 0:
         return {}
 
     # can fail on very small or complex networks.
     # in that case, fall back to a single cluster containing all nodes.
-    if n_nodes < 3 or adj_matrix.nnz == 0:
-        return {0: list(range(n_nodes))}
+    if n < 100 or nnz == 0:
+        return {0: list(range(n))}
+    
+    # 51k nodes, 5 starting edges -> 300 clusters of max 700 nodes
+    
+    if nnz >= 1_000_000:
+        return {0: list(range(n))}
 
-    louvain = LouvainHierarchy()
+    louvain = LouvainIteration()
     try:
         hierarchy = louvain.fit_predict(adj_matrix)
-        labels = cut_straight(hierarchy, n_clusters=math.floor(math.sqrt(n_nodes)))
+        labels = cut_balanced(hierarchy, max_cluster_size=min(n, 700))
     except Exception as error:
         logger.warning("Falling back to a single cluster: %s", error)
-        return {0: list(range(n_nodes))}
+        return {0: list(range(n))}
 
     clusters = defaultdict(list)
 
     for node_id, cluster_id in enumerate(labels):
         clusters[int(cluster_id)].append(node_id)
 
-    return dict(clusters)
+    clusters_adj_matrix = estimate_links_between_clusters(A=adj_matrix, labels=labels)
+    clusters_adj_matrix.setdiag(0)
+    clusters_layout = entire_network_layout(clusters_adj_matrix)
+
+    logger.info(f"\n\nClusters layout:\n {clusters_layout['nodes']}, \n\n{clusters_layout['edges']}")
+
+    return dict(clusters_layout)
+
+def estimate_links_between_clusters(A: csc_matrix, labels: list) -> csc_matrix: 
+    nnodes = A.shape[0]
+    n_clusters = max(labels) + 1
+    logger.info(nnodes)
+
+    M = csc_matrix((np.ones(nnodes), (np.arange(nnodes), labels)), shape=(nnodes, n_clusters))
+
+    C = M.T @ A @ M
+
+    return C
 
 
 class ClusterRequest(BaseModel):

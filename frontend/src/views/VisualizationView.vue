@@ -18,6 +18,7 @@
     const selectedNodeId = ref(null)
     const isFullscreen = ref(false)
     const loadingState = ref('')
+    let previousBodyOverflow = ''
     let graph = null
     let isUnmounted = false
 
@@ -70,6 +71,9 @@
     onMounted(async () => {
         const container = containerRef.value
         const TRICKLE_COEFFICIENT = 10 // used for loading bar progress
+        // to avoid scroolbar 
+        previousBodyOverflow = document.body.style.overflow
+        document.body.style.overflow = 'hidden'
         nprogress.configure({
             showSpinner: true,
             minimum: 0.08,
@@ -180,6 +184,7 @@
 
     onUnmounted(() => {
         isUnmounted = true
+        document.body.style.overflow = previousBodyOverflow
         document.removeEventListener('fullscreenchange', handleFullscreenChange)
         if (sigmaInstance.value) {
             sigmaInstance.value.kill()
@@ -258,7 +263,9 @@
 
     main {
         width: 100%;
-        margin-top: 2vh;
+        margin-top: 0;
+        height: 83vh;
+        overflow: hidden;
         background: transparent;
     }
 
@@ -284,7 +291,7 @@
     }
 
     #container {
-        height: 100vh;
+        height: 100%;
     }
 
     main:fullscreen #container,
@@ -297,6 +304,10 @@
             width: 90%;
         }
 
+        main {
+            height: 76vh;
+        }
+
         button:first-child {
             visibility: hidden;
         }
@@ -307,16 +318,8 @@
         }
     }
 
-    @media (max-height: 999px) {
-        #container {
-            height: 74vh;   
-        }
-    }
+    @media (max-height: 900px) {
 
-    @media (min-height: 1000px) {
-        #container {
-            height: 81vh;   
-        }
     }
 
     #controls {
