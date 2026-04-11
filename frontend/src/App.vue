@@ -64,17 +64,20 @@ onMounted(() => {
         <div class="toggle-container">
           <RouterLink to="/overview" class="toggle-tab app-link-inline" active-class="active">
             <svg class="button-icon" viewBox="0 0 24 24" aria-hidden="true"
-            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <line x1="12" y1="12" x2="6" y2="6"/>
-              <line x1="12" y1="12" x2="18" y2="6"/>
-              <line x1="12" y1="12" x2="6" y2="18"/>
-              <line x1="12" y1="12" x2="18" y2="18"/>
-              <line x1="6" y1="6" x2="18" y2="6"/>
-              <circle cx="12" cy="12" r="1.8" fill="currentColor" stroke="none"/>
-              <circle cx="6" cy="6" r="1.4" fill="currentColor" stroke="none"/>
-              <circle cx="18" cy="6" r="1.4" fill="currentColor" stroke="none"/>
-              <circle cx="6" cy="18" r="1.4" fill="currentColor" stroke="none"/>
-              <circle cx="18" cy="18" r="1.4" fill="currentColor" stroke="none"/>
+                stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <!-- Edges -->
+              <line x1="12" y1="12" x2="5"  y2="6"/>
+              <line x1="12" y1="12" x2="19" y2="6"/>
+              <line x1="12" y1="12" x2="12" y2="20"/>
+              <line x1="12" y1="12" x2="4"  y2="15"/>
+              <line x1="12" y1="12" x2="20" y2="15"/>
+              <!-- Nodes -->
+              <circle cx="12" cy="12" r="3" fill="currentColor" stroke="none"/>
+              <circle cx="5"  cy="6"  r="1.6" fill="currentColor" stroke="none"/>
+              <circle cx="19" cy="6"  r="1.6" fill="currentColor" stroke="none"/>
+              <circle cx="12" cy="20" r="1.6" fill="currentColor" stroke="none"/>
+              <circle cx="4"  cy="15" r="1.6" fill="currentColor" stroke="none"/>
+              <circle cx="20" cy="15" r="1.6" fill="currentColor" stroke="none"/>
             </svg>
             Overview
           </RouterLink>

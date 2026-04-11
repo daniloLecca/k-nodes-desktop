@@ -103,7 +103,7 @@ def get_network_session(x_network_token: str = Header(...)) -> csc_matrix:
     
     data_bytes = redis_client.get(x_network_token)
     if not data_bytes:
-        raise HTTPException(status_code=404, detail="session expired or not existing, try uploading the file to '/api/'")
+        raise HTTPException(status_code=404, detail="session expired or not existing, try uploading a file or generating a random network.")
     
     # if the network is accessed, the expiring date is updated
     redis_client.expire(x_network_token, SESSION_EXPIRE_TIME)
@@ -284,7 +284,7 @@ def get_gauss_exp(request: ExpRequest, session: dict = Depends(get_network_sessi
     leig = session["leig"]
 
     if network is None:
-        return JSONResponse(status_code=400, content={"error": "network not initialized yet. First send a .mat file to /api/."})
+        return JSONResponse(status_code=400, content={"error": "session expired or not existing, try uploading a file or generating a random network."})
 
     u = np.zeros(network.shape[0])
     u[request.node] = 1.0
@@ -309,7 +309,7 @@ def get_gauss_res(request: ResRequest, session: dict = Depends(get_network_sessi
     if network is None:
         return JSONResponse(
             status_code=400, 
-            content={"error": "network not initialized yet. First send a .mat file to /api/."}
+            content={"error": "session expired or not existing, try uploading a file or generating a random network."}
         )
 
     try:
@@ -408,7 +408,7 @@ async def get_sgclr(request: LowRankSubgraphCentrality, session: dict = Depends(
     if network is None:
         return JSONResponse(
             status_code=400, 
-            content={"error": "network not initialized yet. First send a .mat file to /api/."}
+            content={"error": "session expired or not existing, try uploading a file or generating a random network."}
         )
     
     logger.info(f"Starting sgclr computation with {network.shape[0]} nodes, fun={request.fun_name}, nnodes={request.nnodes}")
@@ -455,7 +455,7 @@ async def get_commlr(request: LowRankCommunicability, session: dict = Depends(ge
     if network is None:
         return JSONResponse(
             status_code=400, 
-            content={"error": "network not initialized yet. First send a .mat file to /api/."}
+            content={"error": "session expired or not existing, try uploading a file or generating a random network."}
         )
     
     logger.info(f"Starting commlr computation with {network.shape[0]} nodes, fun={request.fun_name}, nnodes={request.nnodes}")
@@ -501,7 +501,7 @@ async def get_stconvlr(request: LowRankSubgraphCentrality, session: dict = Depen
     if network is None:
         return JSONResponse(
             status_code=400, 
-            content={"error": "network not initialized yet. First send a .mat file to /api/."}
+            content={"error": "session expired or not existing, try uploading a file or generating a random network."}
         )
     
     logger.info(f"Starting sgclr computation with {network.shape[0]} nodes, fun={request.fun_name}, nnodes={request.nnodes}")
@@ -531,7 +531,7 @@ async def get_sgcgauss(request: GaussSubgraphCentrality, session: dict = Depends
     if network is None:
         return JSONResponse(
             status_code=400, 
-            content={"error": "network not initialized yet. First send a .mat file to /api/."}
+            content={"error": "session expired or not existing, try uploading a file or generating a random network."}
         )
 
     # gauss quadrature options
@@ -561,7 +561,7 @@ async def get_commgauss(request: GaussCommunicability, session: dict = Depends(g
     if network is None:
         return JSONResponse(
             status_code=400, 
-            content={"error": "network not initialized yet. First send a .mat file to /api/."}
+            content={"error": "session expired or not existing, try uploading a file or generating a random network."}
         )
 
     # gauss quadrature options 
@@ -597,7 +597,7 @@ async def get_stconvgauss(request: GaussSubgraphCentrality, session: dict = Depe
     if network is None:
         return JSONResponse(
             status_code=400, 
-            content={"error": "network not initialized yet. First send a .mat file to /api/."}
+            content={"error": "session expired or not existing, try uploading a file or generating a random network."}
         )
 
     # gauss quadrature options 
@@ -628,7 +628,7 @@ async def get_sgchyb(request: HybridSubgraphCentrality, session: dict = Depends(
     if network is None:
         return JSONResponse(
             status_code=400, 
-            content={"error": "network not initialized yet. First send a .mat file to /api/."}
+            content={"error": "session expired or not existing, try uploading a file or generating a random network."}
         )
 
     # hybrid options: low-rank approximation + Gauss quadrature refinement
@@ -691,7 +691,7 @@ async def get_commhyb(request: HybridCommunicability, session: dict = Depends(ge
     if network is None:
         return JSONResponse(
             status_code=400, 
-            content={"error": "network not initialized yet. First send a .mat file to /api/."}
+            content={"error": "session expired or not existing, try uploading a file or generating a random network."}
         )
 
     # hybrid options: low-rank approximation + Gauss quadrature refinement
@@ -757,7 +757,7 @@ async def get_stconvhyb(request: HybridSubgraphCentrality, session: dict = Depen
     if network is None:
         return JSONResponse(
             status_code=400, 
-            content={"error": "network not initialized yet. First send a .mat file to /api/."}
+            content={"error": "session expired or not existing, try uploading a file or generating a random network."}
         )
 
     lr_options = {
