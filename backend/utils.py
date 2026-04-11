@@ -109,8 +109,10 @@ def extract_complex_network_from_file(contents, format: Literal[".mat", ".gexf",
     """
     :param contents: file-like object
     :param format: format of the file, must be '.mat' or '.gexf'
+    :type format: Literal[".mat", ".gexf", ".json"]
 
     :return network: csc_matrix of complex network
+    :rtype: csc_matrix
     """ 
 
     if (format == ".mat"): 
@@ -124,6 +126,10 @@ def extract_complex_network_from_file(contents, format: Literal[".mat", ".gexf",
         # get the adjacency matrix and normalize to scipy sparse matrix format
         _, network = next(iter(mat_data.items()))
         network = csc_matrix(network)
+        # force the matrix to be symmetric and binary (undirected and unweighted complex network)
+        network = csc_matrix((network + network.T > 0).astype(int)) 
+
+        # check not necessarily needed 
         if (network.shape[0] != network.shape[1]) or ((network != network.T).nnz != 0): 
             raise ValueError("the adjacency matrix must represent an undirected graph")
     
