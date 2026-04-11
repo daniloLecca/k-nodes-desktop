@@ -110,6 +110,23 @@ def get_network_session(x_network_token: str = Header(...)) -> csc_matrix:
     
     return pickle.loads(data_bytes)
 
+
+@app.delete("/api/session")
+def delete_network_session(x_network_token: str = Header(...)):
+    """
+    Remove the stored complex network session associated with the token.
+    """
+
+    if not x_network_token:
+        raise HTTPException(status_code=400, detail="token is missing")
+
+    deleted_count = redis_client.delete(x_network_token)
+
+    return {
+        "deleted": bool(deleted_count),
+        "token": x_network_token,
+    }
+
 @app.get("/api/")
 def read_root():
     return {"Hello": "World"}

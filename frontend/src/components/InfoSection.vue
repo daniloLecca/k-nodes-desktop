@@ -90,7 +90,7 @@
         let currentTransform = d3.zoomIdentity;
 
         const x = d3.scaleLinear()
-            .domain([0, usedEigenValues.length])
+            .domain([0, usedEigenValues.length + 1])
             .nice()
             .range([0, width])
 
@@ -417,7 +417,7 @@
             const [boundKind = '', node = '?'] = String(seriesName).split(' ')
             const xLabel = Number.isFinite(iteration) ? iteration.toFixed(2) : '-'
             const yLabel = Number.isFinite(score) ? score.toExponential(3) : '-'
-            return `${boundKind} ${parseInt(node) + 1} (${xLabel}; ${yLabel})`
+            return `${boundKind} ${parseInt(node) + 1} (${parseInt(xLabel)}; ${yLabel})`
         }
 
         function applyLineEmphasis(activeSeries = null) {

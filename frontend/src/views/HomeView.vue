@@ -12,6 +12,13 @@
   const networkModel = ref('scale_free')
   const rewiringProbability = ref(0.01)
 
+  nprogress.configure({
+            showSpinner: true,
+            minimum: 0.08,
+            trickleSpeed: 0.05,
+            trickleRate: 0.02
+        })
+
   // descriptions for info sections
   const infoSectionsDescriptions = [
     {
@@ -68,8 +75,16 @@
     error.value = ''
   }
 
+  const loadingBarNeeded = file => {
+    return (file.name.at(-1) === 't' && file.size >= 102400) || // if the file is .mat and at least 100KB
+           (file.name.at(-1) === 'n' && file.size >= 6024000) || // if the file is .json and at least 6MB
+           (file.name.at(-1) === 'f' && file.size >= 6024000)  // if the file is .gexf and at least 6MB
+  }
+
   const uploadFile = async () => {
+    if (loadingBarNeeded(selectedFile.value)) nprogress.start({showSpinner: false})
     error.value = await sendFile(selectedFile.value)
+    if (loadingBarNeeded(selectedFile.value)) nprogress.done()
   }
 
   const openRandomNetworkPopup = () => {

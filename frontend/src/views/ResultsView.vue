@@ -203,6 +203,22 @@
     }
 
     function jsonResults() {
+        const toOneBasedNodes = (nodes) => Array.isArray(nodes)
+            ? nodes.map((node) => typeof node === 'number' ? node + 1 : node)
+            : []
+
+        const normalizedComputationResult = {
+            ...computationStore.computationResult,
+            vip_nodes: toOneBasedNodes(computationStore.computationResult?.vip_nodes),
+            vip_lowrank: toOneBasedNodes(computationStore.computationResult?.vip_lowrank),
+            candidates_history: Array.isArray(computationStore.computationResult?.candidates_history)
+                ? computationStore.computationResult.candidates_history.map((entry) => ({
+                    ...entry,
+                    candidate_nodes: toOneBasedNodes(entry?.candidate_nodes)
+                }))
+                : computationStore.computationResult?.candidates_history
+        }
+
         const payload = {
             fileName: complexNetworkStore.fileName || '',
             network: {
@@ -211,10 +227,10 @@
                 selfLoops: complexNetworkStore.selfLoops
             },
             computationData: computationStore.computationData,
-            computationResult: computationStore.computationResult,
-            vipNodes: vipNodes.value,
+            computationResult: normalizedComputationResult,
+            vipNodes: toOneBasedNodes(vipNodes.value),
             vipScores: vipScores.value,
-            vipLowrank: vipLowrank.value
+            vipLowrank: toOneBasedNodes(vipLowrank.value)
         }
 
         saveTextFile(JSON.stringify(payload, null, 2), 'results.json', 'application/json;charset=utf-8')

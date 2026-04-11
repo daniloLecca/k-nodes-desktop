@@ -1,4 +1,5 @@
 from sknetwork.hierarchy import LouvainIteration, cut_balanced
+from sknetwork.clustering import Louvain
 from scipy.sparse import csc_matrix
 from scipy.io import loadmat
 from collections import defaultdict
@@ -14,6 +15,95 @@ import json
 
 logger = logging.getLogger(__name__) # for printing logs in dev
 logging.basicConfig(level=logging.INFO)
+
+
+def adjust_cluster_positions_by_size(clusters_layout: dict, clusters: dict[int, list[int]]) -> dict:
+    """
+    Recenter and spread cluster positions using cluster cardinality as radius proxy.
+    This keeps cluster nodes positioned proportionally to the amount of represented nodes.
+    """
+
+    nodes = clusters_layout.get("nodes", [])
+    if not nodes:
+        return clusters_layout
+
+    # radius proxy: sqrt(cardinality) reduces the dynamic range across very small/large clusters
+    radii = {
+        int(cluster_id): max(1.0, math.sqrt(len(cluster_nodes)))
+        for cluster_id, cluster_nodes in clusters.items()
+    }
+
+    total_weight = 0.0
+    centroid_x = 0.0
+    centroid_y = 0.0
+
+    for node in nodes:
+        cluster_id = int(node["key"])
+        weight = float(len(clusters.get(cluster_id, [])) or 1)
+        total_weight += weight
+        centroid_x += node["attributes"]["x"] * weight
+        centroid_y += node["attributes"]["y"] * weight
+
+    if total_weight > 0:
+        centroid_x /= total_weight
+        centroid_y /= total_weight
+
+    for node in nodes:
+        node["attributes"]["x"] -= centroid_x
+        node["attributes"]["y"] -= centroid_y
+
+    # push overlapping clusters apart using their inferred radii
+    n_nodes = len(nodes)
+    if n_nodes > 1:
+        for _ in range(40):
+            moved = False
+            for i in range(n_nodes):
+                node_i = nodes[i]
+                id_i = int(node_i["key"])
+                ri = radii.get(id_i, 1.0)
+                xi = node_i["attributes"]["x"]
+                yi = node_i["attributes"]["y"]
+
+                for j in range(i + 1, n_nodes):
+                    node_j = nodes[j]
+                    id_j = int(node_j["key"])
+                    rj = radii.get(id_j, 1.0)
+                    xj = node_j["attributes"]["x"]
+                    yj = node_j["attributes"]["y"]
+
+                    dx = xj - xi
+                    dy = yj - yi
+                    dist = math.hypot(dx, dy)
+                    min_dist = 1.3 * (ri + rj)
+
+                    if dist < min_dist:
+                        moved = True
+                        if dist == 0:
+                            angle = (i + j + 1) * 0.61803398875
+                            ux = math.cos(angle)
+                            uy = math.sin(angle)
+                        else:
+                            ux = dx / dist
+                            uy = dy / dist
+
+                        shift = 0.5 * (min_dist - dist)
+                        node_i["attributes"]["x"] -= ux * shift
+                        node_i["attributes"]["y"] -= uy * shift
+                        node_j["attributes"]["x"] += ux * shift
+                        node_j["attributes"]["y"] += uy * shift
+
+                        xi = node_i["attributes"]["x"]
+                        yi = node_i["attributes"]["y"]
+
+            if not moved:
+                break
+
+    # expose size to the frontend renderer so larger clusters are visually larger too.
+    for node in nodes:
+        cluster_id = int(node["key"])
+        node["attributes"]["size"] = radii.get(cluster_id, 1.0)
+
+    return clusters_layout
 
 def extract_complex_network_from_file(contents, format: Literal[".mat", ".gexf", ".json"]) -> csc_matrix:
     """
@@ -149,6 +239,9 @@ def get_clusters(adj_matrix: csc_matrix) -> dict:
     try:
         hierarchy = louvain.fit_predict(adj_matrix)
         labels = cut_balanced(hierarchy, max_cluster_size=min(n, 700))
+    except RecursionError:
+        logger.warning("cut_balanced hit recursion limit")
+        labels = Louvain().fit_predict(adj_matrix)
     except Exception as error:
         logger.warning("Falling back to a single cluster: %s", error)
         return {0: list(range(n))}
@@ -162,6 +255,7 @@ def get_clusters(adj_matrix: csc_matrix) -> dict:
     logger.info("Computed links between clusters")
     clusters_adj_matrix.setdiag(0)
     clusters_layout = entire_network_layout(clusters_adj_matrix)
+    clusters_layout = adjust_cluster_positions_by_size(clusters_layout, dict(clusters))
     logger.info("Computed position of clusters")
     logger.info(f"Clusters layout: {len(clusters_layout['nodes'])} nodes and {len(clusters_layout['edges'])} edges")
 
@@ -171,9 +265,17 @@ def estimate_links_between_clusters(A: csc_matrix, labels: list) -> csc_matrix:
     nnodes = A.shape[0]
     n_clusters = max(labels) + 1
 
-    M = csc_matrix((np.ones(nnodes), (np.arange(nnodes), labels)), shape=(nnodes, n_clusters))
 
+    M = csc_matrix((np.ones(nnodes), (np.arange(nnodes), labels)), shape=(nnodes, n_clusters))
     C = M.T @ A @ M
+    
+    off_diag = C.copy()
+    off_diag.setdiag(0)
+    threshold = off_diag.max() * 0.2
+
+    C.setdiag(0)
+    C.data[C.data < threshold] = 0
+    C.eliminate_zeros()
 
     return C
 

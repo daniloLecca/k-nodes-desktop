@@ -183,6 +183,25 @@ function cancelComputeMeasures() {
   }
 }
 
+async function deleteNetworkSession () {
+  const complexNetworkStore = useComplexNetworkStore()
+
+  if (!complexNetworkStore.token) {
+    return
+  }
+
+  try {
+    await fetch('/api/session', {
+      method: 'DELETE',
+      headers: {
+        'X-Network-token': complexNetworkStore.token,
+      },
+    })
+  } catch (err) {
+    console.log(err)
+  }
+}
+
 // for basic visualization, only needed when doing the setup for Sigma
 async function getEntireNetworkPositions () {
 
@@ -220,4 +239,4 @@ async function getEntireNetworkPositions () {
 
 }
 
-export {sendFile, generateRandomNetwork, computeMeasures, cancelComputeMeasures, getEntireNetworkPositions}
+export {sendFile, generateRandomNetwork, computeMeasures, cancelComputeMeasures, deleteNetworkSession, getEntireNetworkPositions}

@@ -8,6 +8,7 @@ import ResultsView from '@/views/ResultsView.vue'
 import { useComplexNetworkStore } from '@/stores/complexNetwork'
 import { usePositionsStore } from '@/stores/positionsStore'
 import { useComputationStore } from '@/stores/computationStore'
+import { deleteNetworkSession } from '@/utils/apis'
 import nprogress from 'nprogress'
 
 
@@ -55,6 +56,7 @@ router.beforeEach(async (to, _from, next) => {
 
     if (to.path === '/') {
       // if the user navigates to the home, the network is deleted
+      await deleteNetworkSession()
       positionsStore.currentLayer = {}
       computationStore.computationResult = {}
       computationStore.computationData = {}

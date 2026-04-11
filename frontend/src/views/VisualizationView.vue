@@ -88,7 +88,7 @@
             // checks if the store is empty, the store is emptied every time the user goes to the home page
             if (!Object.keys(positions.currentLayer).length) {
                 nprogress.start()
-                loadingState.value = 'Loading...'
+                loadingState.value = 'Loading visualization...'
                 positions.currentLayer = await getEntireNetworkPositions()
                 loadingState.value = ''
                 nprogress.done()
@@ -99,9 +99,15 @@
             graph = new Graph();
             graph.import(positions.currentLayer)
 
+            const nodeDegrees = new Map()
+            graph.forEachNode((nodeId) => {
+              nodeDegrees.set(nodeId, graph.degree(nodeId))
+            })
+
             sigmaInstance.value = new Sigma(graph, container, {
                 labelRenderedSizeThreshold: 100,
                 defaultNodeColor: "yellow", 
+                zIndex: true, 
             })
             sigmaCamera.value = sigmaInstance.value.getCamera()
             sigmaCamera.value.on("updated", () => {
@@ -151,6 +157,7 @@
             sigmaInstance.value.setSetting("nodeReducer", (nodeId, data) => {
                 const isVip = vipNodes.includes(Number(nodeId))
                 const isSelected = selectedNodeId.value === nodeId
+                const degree = nodeDegrees.get(nodeId) ?? 0
 
                 const baseLabel = isVip
                     ? "VIP node: " + String(Number(nodeId) + 1)
@@ -160,8 +167,9 @@
                     ...data,
                     color: isVip ? "orange" : data.color,
                     size: isVip ? 5 : data.size,
+                    zIndex: isVip ? 9999 : 1,
                     label: isSelected
-                        ? `${baseLabel}, degree: ${graph.degree(nodeId)}`
+                        ? `${baseLabel}, degree: ${degree}`
                         : baseLabel
                 }
             })
@@ -202,7 +210,7 @@
             <p v-if="complexNetworkStore.selfLoops !== 0">
                 The network has {{ complexNetworkStore.selfLoops }} self loop(s). Self loops have been removed.
             </p>
-            <p>{{ loadingState }}</p>
+            <p><i>{{ loadingState }}</i></p>
         </div>
         <div id="container" ref="containerRef"></div>
         <div id="controls">
