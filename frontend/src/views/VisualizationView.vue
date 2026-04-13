@@ -120,7 +120,6 @@
                 loadingState.value = ''
                 nprogress.done()
             }
-            console.log(positions.currentLayer)
             if (isUnmounted || !container.isConnected) return
 
             graph = new Graph();
@@ -137,9 +136,6 @@
                 zIndex: true, 
             })
             sigmaCamera.value = sigmaInstance.value.getCamera()
-            sigmaCamera.value.on("updated", () => {
-                console.log(sigmaCamera.value.ratio)
-            })
 
             // check if node is being clicked 
             sigmaInstance.value.on("downNode", e => {

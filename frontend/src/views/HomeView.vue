@@ -1,5 +1,5 @@
 <script setup>
-  import { ref, computed } from 'vue'
+  import { ref, computed, onMounted } from 'vue'
   import nprogress from 'nprogress'
   import { sendFile, generateRandomNetwork } from '@/utils/apis'
   import InfoSection from '@/components/InfoSection.vue'
@@ -11,6 +11,7 @@
   const randomEdges = ref(2)
   const networkModel = ref('scale_free')
   const rewiringProbability = ref(0.01)
+  const theme = ref('')
 
   nprogress.configure({
             showSpinner: true,
@@ -18,6 +19,10 @@
             trickleSpeed: 0.05,
             trickleRate: 0.02
         })
+
+  const savedTheme = localStorage.getItem('vipnodes-theme')
+  const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches
+  theme.value = savedTheme || (prefersDark ? 'dark' : 'light')
 
   // descriptions for info sections
   const infoSectionsDescriptions = [
@@ -40,7 +45,7 @@
          to the existing ones. The connection probability depends on the degree of the already existing nodes. \n \
         2. Small world network: using the Watts-Strogatz model, generate a lattice with the initial nodes and edges and rewire \
         edges with a certain probability.", 
-      imgURL: (new URL('../assets/imgs/random-network-screenshot.png', import.meta.url).href)
+      imgURL: (new URL('../assets/imgs/random-network-screenshot-' + theme.value + ".png", import.meta.url).href)
     },
     {
       title: "What can I do with VIPNODES?",
@@ -49,7 +54,7 @@
       network and the starting convenience. \n\nIn addition, VIPNODES offers a wide choice of options and parameters in order to maximize the results \
       and ensure numerical precision. \n\nUnlike other tools, VIPNODES lets you explore the complex network, with a robust overview of \
       the entire network and lets you interact with its structure. For example, by dragging the nodes or visualizing the VIP nodes.", 
-      imgURL: (new URL('../assets/imgs/visualize-vip-nodes.png', import.meta.url).href)
+      imgURL: (new URL('../assets/imgs/vip-nodes-visualization-' + theme.value + ".png", import.meta.url).href)
     },
     {
       title: "Which computation methods does VIPNODES implement?",
@@ -59,7 +64,7 @@
       unique two-stage approach referred to as the 'hybrid method', which first performs a low rank approximation in order to quickly determine a larger set of \
       VIP nodes and eventually refines the computation with Gauss type quadrature rules on the few remaining nodes.\n\nThe hybrid method combines \
       efficiency and precision and is usually considered a more convenient approach for most applications. ", 
-      imgURL: (new URL('../assets/imgs/statistics-visualization.png', import.meta.url).href)
+      imgURL: (new URL('../assets/imgs/results-screenshot-' + theme.value + ".png", import.meta.url).href)
     },
   ]
 

@@ -86,7 +86,7 @@ async function sendFile (uploadedFile) {
     const result = payload;
     
 
-    console.log('Upload success: ', result);
+    console.log('Upload successful');
     complexNetworkStore.fileName = result["filename"]
     complexNetworkStore.token = result["token"]
     complexNetworkStore.nnodes = result["nodes"]
