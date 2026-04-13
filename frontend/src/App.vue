@@ -136,7 +136,7 @@ onMounted(() => {
 
 .theme-toggle {
   position: absolute;
-  top: 1rem;
+  top: 2rem;
   right: 1rem;
   z-index: 1100;
   background-color: var(--color-background-soft);
@@ -249,7 +249,7 @@ onMounted(() => {
   }
 
   .theme-toggle {
-    top: 1rem;
+    top: 1.5rem;
     right: 0.15rem;
     padding-inline: 1rem;
   }

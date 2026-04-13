@@ -3,6 +3,7 @@ from fa2.viz import export_layout
 from scipy.sparse import csc_matrix
 import logging
 from time import perf_counter
+from datetime import datetime
 
 logger = logging.getLogger(__name__) # for printing logs in dev
 logging.basicConfig(level=logging.INFO)
@@ -12,8 +13,10 @@ def entire_network_layout(network: csc_matrix) -> dict:
     network = network.tocsr()
     iters = 300
 
+    logger.info(f"Layout computation started... {datetime(2025, 4, 12).now()}")
+
     t0 = perf_counter()
-    fa2 = ForceAtlas2(verbose=False)
+    fa2 = ForceAtlas2(verbose=True)
     positions = fa2.forceatlas2(network, iterations=iters)
 
     layout = export_layout(G=network, positions=positions, fmt="json")

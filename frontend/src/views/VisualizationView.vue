@@ -18,6 +18,8 @@
     const selectedNodeId = ref(null)
     const isFullscreen = ref(false)
     const loadingState = ref('')
+    const nodeToZoom = ref(1)
+    const displayNodeSearchBar = ref(false)
     let previousBodyOverflow = ''
     let graph = null
     let isUnmounted = false
@@ -68,6 +70,31 @@
         }
     }
 
+    function showNodeSearchBar () {
+        displayNodeSearchBar.value = !displayNodeSearchBar.value
+    }
+
+    function searchNode () {
+        if (!sigmaCamera.value || !sigmaInstance.value || !graph) return
+
+        const nodeId = String(Number(nodeToZoom.value) - 1)
+        if (!graph.hasNode(nodeId)) return
+
+        const displayData = sigmaInstance.value.getNodeDisplayData(nodeId)
+        const coords = displayData
+            ? { x: displayData.x, y: displayData.y }
+            : graph.getNodeAttributes(nodeId)
+
+        const target = { x: coords.x, y: coords.y, ratio: 0.01 }
+
+        sigmaCamera.value.animate(target, {
+            duration: 700,
+            onComplete: () => sigmaCamera.value.setState(target)
+        })
+
+        selectedNodeId.value = nodeId
+        sigmaInstance.value.refresh({ skipIndexation: true })
+    }
     onMounted(async () => {
         const container = containerRef.value
         const TRICKLE_COEFFICIENT = 10 // used for loading bar progress
@@ -125,6 +152,8 @@
             // node dragging
             sigmaInstance.value.on("moveBody", ({ event }) => {
                 if (!isDragging || !draggedNode) return;
+                
+                sigmaInstance.value?.setCustomBBox(null)
 
                 const pos = sigmaInstance.value.viewportToGraph(event);
 
@@ -212,7 +241,10 @@
             </p>
             <p><i>{{ loadingState }}</i></p>
         </div>
-        <div id="container" ref="containerRef"></div>
+        <div class="node-search-bar" v-if="displayNodeSearchBar">
+            <input type="number" name="nodeToZoom" id="nodeToZoom" autofocus v-model="nodeToZoom" min="1" :max="complexNetworkStore.nnodes" @keypress.enter="searchNode()">
+        </div>
+        <div id="container" ref="containerRef" @click="displayNodeSearchBar = false"></div>
         <div id="controls">
             <button @click="fullScreenMode()">
                 <svg v-if="!isFullscreen" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -230,6 +262,12 @@
                         <path d="M18 14 V17 Q18 18 17 18 H14"/>
                         <path d="M10 18 H7 Q6 18 6 17 V14"/>
                     </g>
+                </svg>
+            </button>
+            <button @click="showNodeSearchBar()">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="11" cy="11" r="7"/>
+                    <line x1="21" y1="21" x2="16.65" y2="16.65"/>
                 </svg>
             </button>
             <button @click="zoomIn()">
@@ -298,6 +336,27 @@
         color: var(--color-background);
     }
 
+    .node-search-bar {
+        position: absolute;
+        top: 2rem;
+        right: 20vh;
+        height: 5vh;
+        width: 25vh;
+        background-color: var(--color-background);
+        z-index: 9999;
+    }
+
+    .node-search-bar input {
+        width: 85%;
+        border: 1px solid var(--color-border);
+        border-radius: 0.6rem;
+        background: var(--color-background);
+        color: var(--color-text);
+        padding: 0.55rem 0.7rem;
+        font-family: inherit;
+        font-size: 1rem;
+    }
+
     #container {
         height: 100%;
     }
@@ -307,9 +366,20 @@
         height: 100vh;
     }
 
-    @media (max-width: 400px) {
+    main:fullscreen .node-search-bar,
+    .main--fullscreen .node-search-bar {
+        background: transparent;
+    }
+
+    @media (max-width: 441px) {
+        .node-search-bar {
+            width: 83%;
+            left: 10%;
+            top: 1.5rem;
+        }
+
         button {
-            width: 90%;
+            width: 85%;
         }
 
         main {
@@ -324,10 +394,6 @@
             width: 100%;
             height: 100%;
         }
-    }
-
-    @media (max-height: 900px) {
-
     }
 
     #controls {
