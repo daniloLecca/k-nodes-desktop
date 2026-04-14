@@ -138,7 +138,7 @@ onMounted(() => {
   position: absolute;
   top: 2rem;
   right: 1rem;
-  z-index: 1100;
+  z-index: 10000;
   background-color: var(--color-background-soft);
   color: var(--color-text);
   border: 1px solid var(--color-border);

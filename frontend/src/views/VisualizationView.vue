@@ -392,6 +392,12 @@
         }
     }
 
+    @media (max-width: 1200px) {
+        .node-search-bar {
+            top: 1rem;
+        }
+    }
+
     #controls {
         position: fixed;
         display: flex;
