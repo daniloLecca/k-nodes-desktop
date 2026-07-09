@@ -2,6 +2,8 @@ import { useComplexNetworkStore } from "@/stores/complexNetwork";
 import { useComputationStore } from "@/stores/computationStore";
 import router from "@/router";
 
+const API_BASE = 'http://127.0.0.1:8123'; // <-- INDIRIZZO DEL BACKEND PYTHON IN ELECTRON
+
 let computeMeasuresController = null
 
 async function sendFile (uploadedFile) {
@@ -13,7 +15,7 @@ async function sendFile (uploadedFile) {
     formData.append('file', uploadedFile);
 
     try {
-      const response = await fetch('/api/', {
+      const response = await fetch(`${API_BASE}/api/`, {
       method: 'POST', 
       body: formData
     })
@@ -24,16 +26,12 @@ async function sendFile (uploadedFile) {
       error = payload?.error || payload?.detail || 'request not valid (400).'
       return error
     }
-
     if (!response.ok) {
       error = payload?.error || payload?.detail || `server error (${response.status}).`
       return error
     }
 
     const result = payload;
-    
-
-    console.log('Upload success: ', result);
     complexNetworkStore.fileName = result["filename"]
     complexNetworkStore.token = result["token"]
     complexNetworkStore.nnodes = result["nodes"]
@@ -47,9 +45,7 @@ async function sendFile (uploadedFile) {
 
     } catch (err) {
       error= 'network error, check your Internet connection and retry.'
-      console.log(err.message)
     }
-
     return error
   }
 
@@ -57,36 +53,21 @@ async function sendFile (uploadedFile) {
   async function generateRandomNetwork (formData, p) {
     const complexNetworkStore = useComplexNetworkStore()
     let error = ''
-
     if (formData.model === 'small_world') formData["p"] = p;
 
-    console.log('Random network params:', formData)
-
     try {
-      const response = await fetch('/api/random', {
+      const response = await fetch(`${API_BASE}/api/random`, {
       method: 'POST', 
-      headers: {
-        "Content-Type": "application/json"
-      },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify(formData)
     })
 
     const payload = await response.json().catch(() => ({}));
 
-    if (response.status === 400) {
-      error = payload?.error || payload?.detail || 'request not valid (400).'
-      return error
-    }
-
-    if (!response.ok) {
-      error = payload?.error || payload?.detail || `server error (${response.status}).`
-      return error
-    }
+    if (response.status === 400) return payload?.error || 'request not valid.'
+    if (!response.ok) return payload?.error || `server error.`
 
     const result = payload;
-    
-
-    console.log('Upload successful');
     complexNetworkStore.fileName = result["filename"]
     complexNetworkStore.token = result["token"]
     complexNetworkStore.nnodes = result["nodes"]
@@ -97,12 +78,9 @@ async function sendFile (uploadedFile) {
     complexNetworkStore.clusters = result["clusters"]
     
     router.push("/overview");
-
     } catch (err) {
-      error= 'network error, check your Internet connection and retry.'
-      console.log(err.message)
+      error= 'network error.'
     }
-
     return error
   }
 
@@ -111,13 +89,10 @@ async function sendFile (uploadedFile) {
     const complexNetworkStore = useComplexNetworkStore()
     const computationStore = useComputationStore()
 
-    if (computeMeasuresController) {
-      computeMeasuresController.abort()
-    }
+    if (computeMeasuresController) computeMeasuresController.abort()
     computeMeasuresController = new AbortController()
 
-    const route = `/api/${computationData["cenIndex"]}${computationData.compMethod}`
-
+    const route = `${API_BASE}/api/${computationData["cenIndex"]}${computationData.compMethod}`
     let error = ''
 
     const requestBody = {
@@ -146,29 +121,19 @@ async function sendFile (uploadedFile) {
 
       const payload = await response.json().catch(() => ({}));
 
-      if (response.status === 400) {
-        error = payload?.error || payload?.detail || 'request not valid (400).'
+      if (response.status === 400 || !response.ok) {
+        error = payload?.error || 'server error'
         return { error, aborted: false }
       }
-
-      if (!response.ok) {
-        error = payload?.error || payload?.detail || `server error (${response.status}).`
-        return { error, aborted: false }
-      }
-
-      const result = payload;
 
       computationStore.$patch({
         computationData,
-        computationResult: result,
+        computationResult: payload,
       })
 
     } catch (err) {
-      if (err?.name === 'AbortError') {
-        return { error: '', aborted: true }
-      }
-      console.log(err)
-      error = 'network error, check your Internet connection and retry.'
+      if (err?.name === 'AbortError') return { error: '', aborted: true }
+      error = 'network error.'
       return { error, aborted: false }
     } finally {
       computeMeasuresController = null
@@ -178,65 +143,31 @@ async function sendFile (uploadedFile) {
   }
 
 function cancelComputeMeasures() {
-  if (computeMeasuresController) {
-    computeMeasuresController.abort()
-  }
+  if (computeMeasuresController) computeMeasuresController.abort()
 }
 
 async function deleteNetworkSession () {
   const complexNetworkStore = useComplexNetworkStore()
-
-  if (!complexNetworkStore.token) {
-    return
-  }
+  if (!complexNetworkStore.token) return
 
   try {
-    await fetch('/api/session', {
+    await fetch(`${API_BASE}/api/session`, {
       method: 'DELETE',
-      headers: {
-        'X-Network-token': complexNetworkStore.token,
-      },
+      headers: { 'X-Network-token': complexNetworkStore.token },
     })
-  } catch (err) {
-    console.log(err)
-  }
+  } catch (err) {}
 }
 
-// for basic visualization, only needed when doing the setup for Sigma
 async function getEntireNetworkPositions () {
-
   const complexNetworkStore = useComplexNetworkStore()
-  let error = ''
-
   try {
-      const response = await fetch('/api/tiny_network_viz', {
+      const response = await fetch(`${API_BASE}/api/tiny_network_viz`, {
       method: 'POST', 
-      headers: {
-        "Content-Type": "application/json", 
-        "X-Network-token": complexNetworkStore.token
-      },
+      headers: { "Content-Type": "application/json", "X-Network-token": complexNetworkStore.token },
     })
-
     const payload = await response.json().catch(() => ({}));
-
-    if (response.status === 400) {
-      error = payload?.error || payload?.detail || 'request not valid (400).'
-      return error
-    }
-
-    if (!response.ok) {
-      error = payload?.error || payload?.detail || `server error (${response.status}).`
-      return error
-    }
-
-    const result = payload;
-    return result
-
-    } catch (err) {
-      error= 'network error, check your Internet connection and retry.'
-      console.log(err.message)
-    }
-
+    if (response.ok) return payload;
+  } catch (err) {}
 }
 
 export {sendFile, generateRandomNetwork, computeMeasures, cancelComputeMeasures, deleteNetworkSession, getEntireNetworkPositions}

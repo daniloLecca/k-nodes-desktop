@@ -1,9 +1,9 @@
 import io
 import os
-import redis
 import numpy as np
 import logging
-import pickle
+import argparse
+import uvicorn # <-- AGGIUNTO per avviare il server
 import generate as gnt
 from scipy import sparse
 from scipy.sparse import csc_matrix
@@ -14,6 +14,8 @@ import matplotlib.pyplot as plt
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import Response
+from fastapi.middleware.cors import CORSMiddleware # <-- AGGIUNTO PER ELECTRON
+
 from utils import get_clusters, ClusterRequest, ExpRequest, ResRequest, RandomComplexNetworkRequest
 from utils import LowRankSubgraphCentrality, LowRankCommunicability, GaussSubgraphCentrality, GaussCommunicability
 from utils import HybridSubgraphCentrality, HybridCommunicability
@@ -26,51 +28,43 @@ from primme import PrimmeError
 from secrets import token_urlsafe
 from time import perf_counter
 
-logger = logging.getLogger(__name__) # for printing logs in dev
+logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
 
-NUMBER_OF_LOW_RANK_NODES_ESTIMATE = 10 # indicates "10 times the number of nodes seeked via hybrid method"
+NUMBER_OF_LOW_RANK_NODES_ESTIMATE = 10
 
-# middleware to limit body size (of the HTTP request)
 class BodySizeLimitMiddleware(BaseHTTPMiddleware):
-    def __init__(self, app, max_body_size: int = 100 * 1024 * 1024):  # default: 100MB
+    def __init__(self, app, max_body_size: int = 100 * 1024 * 1024):
         super().__init__(app)
         self.max_body_size = max_body_size
     
     async def dispatch(self, request: Request, call_next):
-        # checks content-length in the header
         content_length = request.headers.get('content-length')
         if content_length and int(content_length) > self.max_body_size:
             return JSONResponse(
                 status_code=413,
                 content={"error": f"File too large. Maximum size allowed is {self.max_body_size / (1024 * 1024):.0f} MB"}
             )
-        
         response = await call_next(request)
         return response
 
 app = FastAPI()
+app.add_middleware(BodySizeLimitMiddleware, max_body_size=100 * 1024 * 1024)
 
-# adds middleware
-app.add_middleware(BodySizeLimitMiddleware, max_body_size=100 * 1024 * 1024)  # 100 MB
+# CONFIGURAZIONE CORS PER ELECTRON (Consente chiamate da file://)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
-# initialize Redis client
-# in docker-compose the URL for the client is defined as REDIS_URL=redis://redis:6379/0
-redis_client = redis.from_url(os.getenv("REDIS_URL", "redis://localhost:6379/0"))
-
-# session expires in 2 hours
-SESSION_EXPIRE_TIME = 7200
-
+# SOSTITUZIONE DI REDIS CON MEMORIA RAM LOCALE
+LOCAL_SESSION_STORE = {}
 
 def serialize_candidates_history(candidates_history):
-    """
-    Serialize candidates history to JSON-compatible data.
-
-    Supported format:
-    - tuple(nodes, lower_bounds, upper_bounds, eigenvalue)
-    """
     serialized = []
-
     for entry in candidates_history:
         if isinstance(entry, tuple) and len(entry) == 4:
             candidate_nodes, lower_bounds, upper_bounds, eigenvalue = entry
@@ -81,250 +75,119 @@ def serialize_candidates_history(candidates_history):
                 "eigenvalue": float(eigenvalue),
             })
         else:
-            # Backward compatibility with the old structure.
             serialized.append({
                 "candidate_nodes": np.asarray(entry).tolist(),
             })
-
     return serialized
 
-
 def get_network_session(x_network_token: str = Header(...)) -> csc_matrix:
-    """
-    Extract the complex network for the corresponding token from Redis. 
-
-    :param x_network_token: token associated to the complex network
-    
-    :return network: corresponding complex network in scipy.sparse.csc_matrix format
-    """
-
     if not x_network_token:
         raise HTTPException(status_code=400, detail="token is missing")
     
-    data_bytes = redis_client.get(x_network_token)
-    if not data_bytes:
-        raise HTTPException(status_code=404, detail="session expired or not existing, try uploading a file or generating a random network.")
+    # Recupero dalla memoria locale
+    session_data = LOCAL_SESSION_STORE.get(x_network_token)
+    if not session_data:
+        raise HTTPException(status_code=404, detail="session expired or not existing.")
     
-    # if the network is accessed, the expiring date is updated
-    redis_client.expire(x_network_token, SESSION_EXPIRE_TIME)
-    
-    return pickle.loads(data_bytes)
-
+    return session_data
 
 @app.delete("/api/session")
 def delete_network_session(x_network_token: str = Header(...)):
-    """
-    Remove the stored complex network session associated with the token.
-    """
-
     if not x_network_token:
         raise HTTPException(status_code=400, detail="token is missing")
-
-    deleted_count = redis_client.delete(x_network_token)
-
-    return {
-        "deleted": bool(deleted_count),
-        "token": x_network_token,
-    }
+    deleted = LOCAL_SESSION_STORE.pop(x_network_token, None) is not None
+    return {"deleted": deleted, "token": x_network_token}
 
 @app.get("/api/")
 def read_root():
     return {"Hello": "World"}
 
-
 @app.post("/api/")
 async def overview(file: UploadFile = File(...)):
-    """
-    Processes the adjacency matrix in the .mat file and returns the network info as well as the clusters.
-    
-    Response JSON:
-    {
-        "filename": str,
-        "nodes": int,
-        "edges": int,
-        "clusters": {
-            "clusterID": node_count,
-            ...
-        },
-        "numberOfClusters": int
-    }
-    """
-    global clusters, network, leig
-    
-    # check that the file sent in the body has .mat extension
     if not (file.filename.endswith('.mat') or file.filename.endswith('.gexf') or file.filename.endswith('.json')):
-        return JSONResponse(
-            status_code=400,
-            content={"error": "the file must have .mat, .gexf or .json extension"}
-        )
+        return JSONResponse(status_code=400, content={"error": "the file must have .mat, .gexf or .json extension"})
     
     try:
-        # read file content
         contents = await file.read()
         contents = io.BytesIO(contents)
         
-        # loadfile
-        if file.filename.endswith('.mat'):
-            format = ".mat"
-        elif file.filename.endswith('.json'):
-            format = ".json"
-        else:
-            format = ".gexf"
+        if file.filename.endswith('.mat'): format = ".mat"
+        elif file.filename.endswith('.json'): format = ".json"
+        else: format = ".gexf"
 
         try: 
             network = extract_complex_network_from_file(contents=contents, format=format)
         except Exception as e: 
-            return JSONResponse(
-                status_code=400,
-                content={
-                    "error": "file not valid"
-                }
-            )
+            return JSONResponse(status_code=400, content={"error": "file not valid"})
 
         number_of_self_loops: int = 0
-        # convert the sparse matrix in column sparse format if it's not already
         if sparse.issparse(network):
             network = network.tocsc()
             number_of_self_loops = np.sum(network.diagonal())
-            network.setdiag(0) # all the elements in the diagonal will be equal to 0
-            network.eliminate_zeros() # delete the zero entries
+            network.setdiag(0)
+            network.eliminate_zeros()
         else:
-            return JSONResponse(
-                status_code=400,
-                content={
-                    "error": "the variable must be a sparse adjacency matrix"
-                }
-            )
+            return JSONResponse(status_code=400, content={"error": "must be a sparse adjacency matrix"})
         
-        leig = eigsh(network, k=1, which='LA', return_eigenvectors=False)[0] # compute the largest eigenvalue
+        leig = eigsh(network, k=1, which='LA', return_eigenvectors=False)[0]
         clusters = get_clusters(network)
-
-        # generate the unique token
         token = token_urlsafe(32)
         
-        # in the DB is saved the network as well as the largest eigenvalue and the clusters 
-        # this allows some sort of "caching" 
-        session_data = {
+        # Salvataggio in RAM
+        LOCAL_SESSION_STORE[token] = {
             "network": network,
             "leig": leig,
             "clusters": clusters
         }
         
-        # Redis saves with: 
-        # - key = token
-        # value = serialized data with pickle
-        redis_client.setex(
-            token, 
-            SESSION_EXPIRE_TIME, 
-            pickle.dumps(session_data)
-        )
-        
         return {
             "token": token,
             "filename": file.filename,
             "nodes": int(list(network.shape)[0]),
-            "edges": int(network.nnz // 2), # the matrix is symmetric
+            "edges": int(network.nnz // 2),
             "largest eigenvalue": leig,
             "max value for alpha": float(1 / leig),
             "self loops": int(number_of_self_loops),
             "clusters": clusters,
             "numberOfClusters": len(clusters.keys())
         }
-        
-        # generic error
     except Exception as e:
-        return JSONResponse(
-            status_code=500,
-            content={"error": f"error processing the file: {str(e)}"}
-        )
-    
+        return JSONResponse(status_code=500, content={"error": f"error processing the file: {str(e)}"})
     finally:
         await file.close()
 
-
 @app.post("/api/cluster")
 def nodes_of_cluster(request: ClusterRequest, session: dict = Depends(get_network_session)):
-    """
-    Returns the nodes of the specified cluster.
-    
-    Body JSON:
-    {
-        "clusterID": str (number of the cluster as a string)
-    }
-    """
     clusters = session["clusters"]
-
     try:
         cluster_id = int(request.clusterID)
         if cluster_id in clusters:
             return {"clusterID": cluster_id, "nodes": clusters[cluster_id]}
         else:
-            return JSONResponse(
-                status_code=404,
-                content={"error": f"Cluster {cluster_id} not found"}
-            )
-            
+            return JSONResponse(status_code=404, content={"error": f"Cluster not found"})
     except ValueError:
-        return JSONResponse(
-            status_code=400,
-            content={"error": f"clusterID must be an integer"}
-        )
+        return JSONResponse(status_code=400, content={"error": f"clusterID must be an integer"})
     
 @app.post("/api/gaussexp")
 def get_gauss_exp(request: ExpRequest, session: dict = Depends(get_network_session)):
-    """
-    Computes the exponential using Gauss quadrature.
-    
-    Response JSON:
-    {
-        "exp": float (the exponential value)
-    }
-    """
     network = session["network"]
     leig = session["leig"]
-
-    if network is None:
-        return JSONResponse(status_code=400, content={"error": "session expired or not existing, try uploading a file or generating a random network."})
-
     u = np.zeros(network.shape[0])
     u[request.node] = 1.0
     val, steps = gauss_exp(network, u, leig)
-    return {
-        "exp": val, 
-        "steps": steps
-    }
+    return {"exp": val, "steps": steps}
 
 @app.post("/api/gaussres")
 def get_gauss_res(request: ResRequest, session: dict = Depends(get_network_session)):
-    """
-    Computes the resolvent using Gauss quadrature.
-    
-    Response JSON:
-    {
-        "res": float (the resolvent value)
-    }
-    """
     network = session["network"]
     leig = session["leig"]
-    if network is None:
-        return JSONResponse(
-            status_code=400, 
-            content={"error": "session expired or not existing, try uploading a file or generating a random network."}
-        )
-
     try:
         u = np.zeros(network.shape[0])
         u[request.node] = 1.0
-                
         val, steps = gauss_res(network, u, leig, request.alpha)
-        return {
-            "res": val
-        }
+        return {"res": val}
     except Exception as e:
-        return JSONResponse(
-            status_code=500,
-            content={"error": f"Error computing resolvent: {str(e)}"}
-        )
+        return JSONResponse(status_code=500, content={"error": str(e)})
     
 @app.post("/api/random")
 def get_random_complex_network(request: RandomComplexNetworkRequest): 
@@ -335,33 +198,18 @@ def get_random_complex_network(request: RandomComplexNetworkRequest):
 
     leig = eigsh(network, k=1, which='LA', return_eigenvectors=False)[0]
     clusters = get_clusters(network)
-
-    # generate the unique token
     token = token_urlsafe(32)
-    logger.info(token)
         
-    # in the DB is saved the network as well as the largest eigenvalue and the clusters 
-    # this allows some sort of "caching" 
-    session_data = {
+    LOCAL_SESSION_STORE[token] = {
         "network": network,
         "leig": leig,
         "clusters": clusters
     }
         
-    # Redis saves with: 
-        # - key = token
-        # value = serialized data with pickle
-        # the token has an expiring time
-    redis_client.setex(
-        token, 
-        SESSION_EXPIRE_TIME, 
-        pickle.dumps(session_data)
-    )
-        
     return {
         "token": token,
         "nodes": int(network.shape[0]),
-        "edges": int(network.nnz // 2), # the matrix is symmetric 
+        "edges": int(network.nnz // 2), 
         "largest eigenvalue": leig,
         "max value for alpha": float(1 / leig),
         "self loops": 0,
@@ -375,21 +223,15 @@ async def get_plot(session: dict = Depends(get_network_session)):
     plt.figure()
     plt.spy(network, precision=0.01, markersize=0.5)
     plt.title("Scatterplot of the adjacency matrix")
-
-    # save in the buffer
     buf = io.BytesIO()
     plt.savefig(buf, format="png")
     plt.close()
     buf.seek(0)
-
     return StreamingResponse(buf, media_type="image/png")
-
 
 @app.post("/api/sgcenlr")
 async def get_sgclr(request: LowRankSubgraphCentrality, session: dict = Depends(get_network_session)):
     network = session["network"]
-    
-    # low rank options
     options = {
         "lr_max_iterations": request.max_iter or 300, 
         "lr_max_eigenvectors": 200,
@@ -404,24 +246,11 @@ async def get_sgclr(request: LowRankSubgraphCentrality, session: dict = Depends(
         "lr_primme_max_iterations": 5000,
         "lr_return_S": True  
     }
-
-    if network is None:
-        return JSONResponse(
-            status_code=400, 
-            content={"error": "session expired or not existing, try uploading a file or generating a random network."}
-        )
-    
-    logger.info(f"Starting sgclr computation with {network.shape[0]} nodes, fun={request.fun_name}, nnodes={request.nnodes}")
-
     try: 
         t0 = perf_counter()
         vip_nodes, vip_sgc, num_eigs, candidates_history = sgcenlr(network, request.fun_name or "exp", request.nnodes or 1, options)
     except PrimmeError: 
-        return JSONResponse(
-            status_code=400, 
-            content={"error": "maximum number of iterations or matvecs reached, try decreasing batch size or incrementing maximum iterations number."}
-    )
-
+        return JSONResponse(status_code=400, content={"error": "max iterations reached"})
     return {
         "vip_nodes": vip_nodes.tolist(),
         "vip_scores": vip_sgc.tolist(),
@@ -430,13 +259,9 @@ async def get_sgclr(request: LowRankSubgraphCentrality, session: dict = Depends(
         "candidates_history": serialize_candidates_history(candidates_history)
     }
 
-
 @app.post("/api/commlr")
 async def get_commlr(request: LowRankCommunicability, session: dict = Depends(get_network_session)):
     network = session["network"]
-    leig = session["leig"]
-    
-    # low-rank options
     options = {
         "lr_max_iterations": request.max_iter or 300, 
         "lr_max_eigenvectors": 200,
@@ -451,24 +276,11 @@ async def get_commlr(request: LowRankCommunicability, session: dict = Depends(ge
         "lr_primme_max_iterations": 5000,
         "lr_return_S": True  
     }
-
-    if network is None:
-        return JSONResponse(
-            status_code=400, 
-            content={"error": "session expired or not existing, try uploading a file or generating a random network."}
-        )
-    
-    logger.info(f"Starting commlr computation with {network.shape[0]} nodes, fun={request.fun_name}, nnodes={request.nnodes}")
-
     try: 
         t0 = perf_counter()
         vip_nodes, vip_comm, num_eigs, candidates_history = commlr(network, request.i, request.fun_name or "exp", request.nnodes or 1, options)
     except PrimmeError: 
-        return JSONResponse(
-            status_code=400, 
-            content={"error": "maximum number of iterations or matvecs reached, try decreasing batch size or incrementing maximum iterations number."}
-    )
-
+        return JSONResponse(status_code=400, content={"error": "max iterations reached"})
     return {
         "vip_nodes": vip_nodes.tolist(),
         "vip_scores": vip_comm.tolist(),
@@ -480,9 +292,6 @@ async def get_commlr(request: LowRankCommunicability, session: dict = Depends(ge
 @app.post("/api/stconvlr")
 async def get_stconvlr(request: LowRankSubgraphCentrality, session: dict = Depends(get_network_session)):
     network = session["network"]
-    leig = session["leig"]
-    
-    # low rank options
     options = {
         "lr_max_iterations": request.max_iter or 300, 
         "lr_max_eigenvectors": 200,
@@ -497,24 +306,11 @@ async def get_stconvlr(request: LowRankSubgraphCentrality, session: dict = Depen
         "lr_primme_max_iterations": 5000,
         "lr_return_S": True  
     }
-
-    if network is None:
-        return JSONResponse(
-            status_code=400, 
-            content={"error": "session expired or not existing, try uploading a file or generating a random network."}
-        )
-    
-    logger.info(f"Starting sgclr computation with {network.shape[0]} nodes, fun={request.fun_name}, nnodes={request.nnodes}")
-    
     try: 
         t0 = perf_counter()
         vip_nodes, vip_stconv, num_eigs, candidates_history = stconvlr(network, request.fun_name or "exp", request.nnodes or 1, options)
     except PrimmeError: 
-        return JSONResponse(
-            status_code=400, 
-            content={"error": "maximum number of iterations or matvecs reached, try decreasing batch size or incrementing maximum iterations number."}
-    )
-
+        return JSONResponse(status_code=400, content={"error": "max iterations reached"})
     return {
         "vip_nodes": vip_nodes.tolist(),
         "vip_scores": vip_stconv.tolist(),
@@ -527,24 +323,14 @@ async def get_stconvlr(request: LowRankSubgraphCentrality, session: dict = Depen
 async def get_sgcgauss(request: GaussSubgraphCentrality, session: dict = Depends(get_network_session)):
     network = session["network"]
     leig = session["leig"]
-
-    if network is None:
-        return JSONResponse(
-            status_code=400, 
-            content={"error": "session expired or not existing, try uploading a file or generating a random network."}
-        )
-
-    # gauss quadrature options
     options = {
         "gauss_tol": request.gauss_tol or 1e-3, 
         "gauss_max_iterations": request.max_iter or 200,
         "gauss_largest_eigenvalue": leig,
         "alpha": request.alpha or 0.0
     }
-
     t0 = perf_counter()
     vip_nodes, vip_sgc, info, iters, allsgc = sgcengauss(network, request.fun_name or "exp", request.nnodes or 1, options)
-
     return {
         "vip_nodes": vip_nodes.tolist(), 
         "vip_scores": vip_sgc.tolist(), 
@@ -557,33 +343,20 @@ async def get_sgcgauss(request: GaussSubgraphCentrality, session: dict = Depends
 @app.post("/api/commgauss")
 async def get_commgauss(request: GaussCommunicability, session: dict = Depends(get_network_session)):
     network = session["network"]
-
-    if network is None:
-        return JSONResponse(
-            status_code=400, 
-            content={"error": "session expired or not existing, try uploading a file or generating a random network."}
-        )
-
-    # gauss quadrature options 
     options = {
         "gauss_tol": request.gauss_tol or 1e-3, 
         "gauss_max_iterations": request.max_iter or 200,
         "alpha": request.alpha or 0.0
     }
-
     try: 
         t0 = perf_counter()
         vip_nodes, vip_comm, info, iters, allcomm = commgauss(network, request.i, request.fun_name or "exp", request.nnodes or 1, options)
     except ValueError as e:
-        return JSONResponse(
-            status_code=400, 
-            content={"error": str(e)}
-        )
-
+        return JSONResponse(status_code=400, content={"error": str(e)})
     return {
         "vip_nodes": vip_nodes.tolist(), 
         "vip_scores": vip_comm.tolist(), 
-        "convergence_gauss": "exceeded max iterations number" if info else "satisfied", 
+        "convergence_gauss": "exceeded" if info else "satisfied", 
         "elapsed_time": perf_counter() - t0,
         "matrix vector products": iters.tolist(), 
         "all communicatibilites": allcomm.tolist()
@@ -593,29 +366,18 @@ async def get_commgauss(request: GaussCommunicability, session: dict = Depends(g
 async def get_stconvgauss(request: GaussSubgraphCentrality, session: dict = Depends(get_network_session)):
     network = session["network"]
     leig = session["leig"]
-
-    if network is None:
-        return JSONResponse(
-            status_code=400, 
-            content={"error": "session expired or not existing, try uploading a file or generating a random network."}
-        )
-
-    # gauss quadrature options 
     options = {
         "gauss_tol": request.gauss_tol or 1e-3, 
         "gauss_max_iterations": request.max_iter or 200,
         "gauss_largest_eigenvalue": leig,
         "alpha": request.alpha or 0.0
     }
-
     t0 = perf_counter()
     vip_nodes, vip_stconv, info, iters, allstconv = stconvgauss(network, request.fun_name or "exp", request.nnodes or 1, options)
-
-
     return {
         "vip_nodes": vip_nodes.tolist(), 
         "vip_scores": vip_stconv.tolist(), 
-        "convergence_gauss": "exceeded max iterations number" if info else "satisfied", 
+        "convergence_gauss": "exceeded" if info else "satisfied", 
         "elapsed_time": perf_counter() - t0,
         "matrix vector products": iters.tolist(), 
         "all subgraph centralities": allstconv.tolist()
@@ -625,20 +387,12 @@ async def get_stconvgauss(request: GaussSubgraphCentrality, session: dict = Depe
 async def get_sgchyb(request: HybridSubgraphCentrality, session: dict = Depends(get_network_session)):
     network = session["network"]
     leig = session["leig"]
-    if network is None:
-        return JSONResponse(
-            status_code=400, 
-            content={"error": "session expired or not existing, try uploading a file or generating a random network."}
-        )
-
-    # hybrid options: low-rank approximation + Gauss quadrature refinement
-    # low-rank options
     lr_options = {
         "lr_max_iterations": request.max_iter or 300, 
         "lr_max_eigenvectors": 200,
         "lr_approximation_tol": request.low_rank_tol or 1e-3,
         "lr_weak_convergence_tol": 1e-1,
-        "lr_nnodes": request.low_rank_nnodes or int(NUMBER_OF_LOW_RANK_NODES_ESTIMATE * request.nnodes), # estimate of the number of nodes for low rank
+        "lr_nnodes": request.low_rank_nnodes or int(NUMBER_OF_LOW_RANK_NODES_ESTIMATE * request.nnodes),
         "lr_min_additional_nodes": 5,
         "lr_max_additional_nodes": 100,
         "lr_shift": request.shift if request.shift is not None else True,
@@ -647,33 +401,17 @@ async def get_sgchyb(request: HybridSubgraphCentrality, session: dict = Depends(
         "lr_primme_max_iterations": 5000,
         "lr_return_S": True,
     }
-    
-    # gauss quadrature options
-    gauss_options = {
-        "gauss_tol": request.gauss_tol or 1e-3,
-        "gauss_max_iterations": 200,
-        "gauss_largest_eigenvalue": leig,
-    }
-    
-    # combine options for hybrid method
+    gauss_options = {"gauss_tol": request.gauss_tol or 1e-3, "gauss_max_iterations": 200, "gauss_largest_eigenvalue": leig}
     options = {**lr_options, **gauss_options, "alpha": request.alpha or 0.0}
-
-    logger.info(f"Starting sgchyb computation with {network.shape[0]} nodes, fun={request.fun_name}, nnodes={request.nnodes}, LR approximation tol = {lr_options['lr_approximation_tol']}")
     try: 
         t0 = perf_counter()
         vip_nodes, vip_sgc, info, iters, allsgc, vip_lr, vipsgc_lr, realN_lr, S_history_lr, convergence = sgcenhyb(network, request.fun_name or "exp", request.nnodes or 1, options)
     except PrimmeError as e: 
-        logger.info(str(e))
-        return JSONResponse(
-            status_code=400, 
-            content={"error": "maximum number of iterations or matvecs reached, try decreasing batch size or incrementing maximum iterations number."}
-    )
-
-    logger.info(f"vipnodes: {vip_nodes}")
+        return JSONResponse(status_code=400, content={"error": "max iterations reached"})
     return {
         "vip_nodes": vip_nodes.tolist(),
         "vip_scores": vip_sgc.tolist(),
-        "convergence_gauss": "exceeded max iterations number" if info else "satisfied",
+        "convergence_gauss": "exceeded" if info else "satisfied",
         "convergence_lowrank": convergence,
         "matrix_vector_products": iters.tolist(),
         "all_subgraph_centralities": allsgc.tolist(),
@@ -687,21 +425,12 @@ async def get_sgchyb(request: HybridSubgraphCentrality, session: dict = Depends(
 @app.post("/api/commhyb")
 async def get_commhyb(request: HybridCommunicability, session: dict = Depends(get_network_session)):
     network = session["network"]
-
-    if network is None:
-        return JSONResponse(
-            status_code=400, 
-            content={"error": "session expired or not existing, try uploading a file or generating a random network."}
-        )
-
-    # hybrid options: low-rank approximation + Gauss quadrature refinement
-    # low-rank options
     lr_options = {
         "lr_max_iterations": request.max_iter or 300, 
         "lr_max_eigenvectors": 200,
         "lr_approximation_tol": request.low_rank_tol or 1e-3,
         "lr_weak_convergence_tol": 1e-1,
-        "lr_nnodes": request.low_rank_nnodes or int(NUMBER_OF_LOW_RANK_NODES_ESTIMATE * request.nnodes), # estimate of the number of nodes for low rank
+        "lr_nnodes": request.low_rank_nnodes or int(NUMBER_OF_LOW_RANK_NODES_ESTIMATE * request.nnodes),
         "lr_min_additional_nodes": 5,
         "lr_max_additional_nodes": 100,
         "lr_shift": request.shift if request.shift is not None else True,
@@ -710,35 +439,17 @@ async def get_commhyb(request: HybridCommunicability, session: dict = Depends(ge
         "lr_primme_max_iterations": 5000,
         "lr_return_S": True,
     }
-    
-    # gauss quadrature options
-    gauss_options = {
-        "gauss_tol": request.gauss_tol or 1e-3,
-        "gauss_max_iterations": 200,
-    }
-    
-    # combine options for hybrid method
+    gauss_options = {"gauss_tol": request.gauss_tol or 1e-3, "gauss_max_iterations": 200}
     options = {**lr_options, **gauss_options, "alpha": request.alpha or 0.0}
-    
-    logger.info(f"Starting commhyb computation with {network.shape[0]} nodes, fun={request.fun_name}, nnodes={request.nnodes}")
     try: 
         t0 = perf_counter()
         vip_nodes, vip_comm, info, iters, allcomm, vip_lr_local, vipcomm_lr_local, realN_lr, S_history_lr, convergence = commhyb(network, request.i, request.fun_name or "exp", request.nnodes or 1, options)
-    except PrimmeError: 
-        return JSONResponse(
-            status_code=400, 
-            content={"error": "maximum number of iterations or matvecs reached, try decreasing batch size or incrementing maximum iterations number."}
-        )
-    except ValueError as e:
-        return JSONResponse(
-            status_code=400, 
-            content={"error": str(e)}
-        )
-
+    except Exception as e: 
+        return JSONResponse(status_code=400, content={"error": str(e)})
     return {
         "vip_nodes": vip_nodes.tolist(),
         "vip_scores": vip_comm.tolist(),
-        "convergence_gauss": "exceeded max iterations number" if info else "satisfied",
+        "convergence_gauss": "exceeded" if info else "satisfied",
         "convergence_lowrank": convergence,
         "elapsed_time": perf_counter() - t0,
         "matrix_vector_products": iters.tolist(),
@@ -753,19 +464,12 @@ async def get_commhyb(request: HybridCommunicability, session: dict = Depends(ge
 async def get_stconvhyb(request: HybridSubgraphCentrality, session: dict = Depends(get_network_session)):
     network = session["network"]
     leig = session["leig"]
-
-    if network is None:
-        return JSONResponse(
-            status_code=400, 
-            content={"error": "session expired or not existing, try uploading a file or generating a random network."}
-        )
-
     lr_options = {
         "lr_max_iterations": request.max_iter or 300, 
         "lr_max_eigenvectors": 200,
         "lr_approximation_tol": request.low_rank_tol or 1e-3,
         "lr_weak_convergence_tol": 1e-1,
-        "lr_nnodes": request.low_rank_nnodes or int(NUMBER_OF_LOW_RANK_NODES_ESTIMATE * request.nnodes), # estimate of the number of nodes for low rank
+        "lr_nnodes": request.low_rank_nnodes or int(NUMBER_OF_LOW_RANK_NODES_ESTIMATE * request.nnodes),
         "lr_min_additional_nodes": 5,
         "lr_max_additional_nodes": 100,
         "lr_shift": request.shift if request.shift is not None else True,
@@ -774,32 +478,17 @@ async def get_stconvhyb(request: HybridSubgraphCentrality, session: dict = Depen
         "lr_primme_max_iterations": 5000,
         "lr_return_S": True,
     }
-    
-    # gauss quadrature options
-    gauss_options = {
-        "gauss_tol": request.gauss_tol or 1e-3,
-        "gauss_max_iterations": 200,
-        "gauss_largest_eigenvalue": leig,
-    }
-    
-    # combine options for hybrid method
+    gauss_options = {"gauss_tol": request.gauss_tol or 1e-3, "gauss_max_iterations": 200, "gauss_largest_eigenvalue": leig}
     options = {**lr_options, **gauss_options, "alpha": request.alpha or 0.0}
-
-    logger.info(f"Starting stconvhyb computation with {network.shape[0]} nodes, fun={request.fun_name}, nnodes={request.nnodes}")
-
     try: 
         t0 = perf_counter()
         vip_nodes, vip_stconv, info, iters, allstconv, vip_lr, vipstconv_lr, realN_lr, S_history_lr, convergence = stconvhyb(network, request.fun_name or "exp", request.nnodes or 1, options)
     except PrimmeError: 
-        return JSONResponse(
-            status_code=400, 
-            content={"error": "maximum number of iterations or matvecs reached, try decreasing batch size or incrementing maximum iterations number."}
-    )
-
+        return JSONResponse(status_code=400, content={"error": "max iterations reached"})
     return {
         "vip_nodes": vip_nodes.tolist(),
         "vip_scores": vip_stconv.tolist(),
-        "convergence_gauss": "exceeded max iterations number" if info else "satisfied",
+        "convergence_gauss": "exceeded" if info else "satisfied",
         "convergence_lowrank": convergence,
         "elapsed_time": perf_counter() - t0,
         "matrix_vector_products": iters.tolist(),
@@ -813,3 +502,12 @@ async def get_stconvhyb(request: HybridSubgraphCentrality, session: dict = Depen
 @app.post("/api/tiny_network_viz")
 async def get_positions_tiny_network(session: dict = Depends(get_network_session)):
     return entire_network_layout(network=session["network"])
+
+# --- AVVIO DEL SERVER PER ELECTRON ---
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--port", type=int, default=8123, help="Porta del server backend")
+    args = parser.parse_args()
+    
+    # Avvia Uvicorn sulla porta specificata (chiamata da localhost)
+    uvicorn.run(app, host="127.0.0.1", port=args.port)

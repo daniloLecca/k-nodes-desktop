@@ -1,12 +1,42 @@
 {
-  "name": "frontend",
-  "version": "0.0.0",
+  "name": "vipnodes",
+  "version": "1.0.0",
   "private": true,
   "type": "module",
+  "main": "electron-main.js",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "electron:start": "electron .",
+    "electron:build": "vite build && electron-builder"
+  },
+  "build": {
+    "appId": "com.vipnodes.desktop",
+    "productName": "VipNodes",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "electron-main.js"
+    ],
+    "extraResources": [
+      {
+        "from": "../backend/dist/backend-api",
+        "to": "backend-dist",
+        "filter": ["**/*"]
+      }
+    ],
+    "mac": {
+      "target": "dmg"
+    },
+    "win": {
+      "target": "nsis"
+    },
+    "linux": {
+      "target": "AppImage"
+    }
   },
   "dependencies": {
     "d3": "^7.9.0",
@@ -23,10 +53,9 @@
   },
   "devDependencies": {
     "@vitejs/plugin-vue": "^6.0.3",
+    "electron": "^30.0.0",
+    "electron-builder": "^24.13.3",
     "vite": "^7.3.1",
     "vite-plugin-vue-devtools": "^8.0.5"
-  },
-  "engines": {
-    "node": "^20.19.0 || >=22.12.0"
   }
 }
