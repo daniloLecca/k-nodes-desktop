@@ -313,6 +313,22 @@ class RandomComplexNetworkRequest(BaseModel):
             if self.p is not None:
                 raise ValueError("'p' must not be provided for 'barabasi_albert'")
 
+        if self.model == "scale_free":
+            if self.nnodes < 2:
+                raise ValueError("'nnodes' must be at least 2 for 'barabasi_albert'")
+            if self.k < 1:
+                raise ValueError("'k' must be at least 1 for 'barabasi_albert'")
+            if self.k >= self.nnodes:
+                raise ValueError("'k' must be smaller than 'nnodes' for 'barabasi_albert'")
+
+        if self.model == "small_world":
+            if self.nnodes < 3:
+                raise ValueError("'nnodes' must be at least 3 for 'watts_strogatz'")
+            if self.k < 2:
+                raise ValueError("'k' must be at least 2 for 'watts_strogatz'")
+            if self.k >= self.nnodes:
+                raise ValueError("'k' must be smaller than 'nnodes' for 'watts_strogatz'")
+
         return self
     
 class LowRankSubgraphCentrality(BaseModel):

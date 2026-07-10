@@ -4,6 +4,14 @@
   import { sendFile, generateRandomNetwork } from '@/utils/apis'
   import InfoSection from '@/components/InfoSection.vue'
 
+  import logoImg from '../../public/vipnodes-logo.png'
+  import randomLight from '@/assets/imgs/random-network-screenshot-light.png'
+  import randomDark from '@/assets/imgs/random-network-screenshot-dark.png'
+  import vipLight from '@/assets/imgs/vip-nodes-visualization-light.png'
+  import vipDark from '@/assets/imgs/vip-nodes-visualization-dark.png'
+  import resultsLight from '@/assets/imgs/results-screenshot-light.png'
+  import resultsDark from '@/assets/imgs/results-screenshot-dark.png'
+
   const selectedFile = ref(null)
   const error = ref('')
   const pressedRandomNetworkButton = ref(false)
@@ -25,14 +33,14 @@
   theme.value = savedTheme || (prefersDark ? 'dark' : 'light')
 
   // descriptions for info sections
-  const infoSectionsDescriptions = [
+  const infoSectionsDescriptions = computed(() => [
     {
       title: "Why VIPNODES?",
       description: "VIPNODES identifies the most important nodes in a complex network, referred to as \'VIP\' nodes. \n\n \
       VIPNODES makes the tool available online, originally developed in MATLAB. Furthermore, this new version introduces \
       various performance optimizations and extends the tool with new features such as network visualization, different export \
       formats and an enhanced statistical visualization. ", 
-      imgURL: (new URL('/public/vipnodes-logo.png', import.meta.url).href)
+      imgURL: logoImg
     },
     {
       title: "How do I upload a complex network with VIPNODES?",
@@ -45,7 +53,7 @@
          to the existing ones. The connection probability depends on the degree of the already existing nodes. \n \
         2. Small world network: using the Watts-Strogatz model, generate a lattice with the initial nodes and edges and rewire \
         edges with a certain probability.", 
-      imgURL: (new URL('../assets/imgs/random-network-screenshot-' + theme.value + ".png", import.meta.url).href)
+      imgURL: theme.value === 'dark' ? randomDark : randomLight
     },
     {
       title: "What can I do with VIPNODES?",
@@ -54,7 +62,7 @@
       network and the starting convenience. \n\nIn addition, VIPNODES offers a wide choice of options and parameters in order to maximize the results \
       and ensure numerical precision. \n\nUnlike other tools, VIPNODES lets you explore the complex network, with a robust overview of \
       the entire network and lets you interact with its structure. For example, by dragging the nodes or visualizing the VIP nodes.", 
-      imgURL: (new URL('../assets/imgs/vip-nodes-visualization-' + theme.value + ".png", import.meta.url).href)
+      imgURL: theme.value === 'dark' ? vipDark : vipLight
     },
     {
       title: "Which computation methods does VIPNODES implement?",
@@ -64,9 +72,9 @@
       unique two-stage approach referred to as the 'hybrid method', which first performs a low rank approximation in order to quickly determine a larger set of \
       VIP nodes and eventually refines the computation with Gauss type quadrature rules on the few remaining nodes.\n\nThe hybrid method combines \
       efficiency and precision and is usually considered a more convenient approach for most applications. ", 
-      imgURL: (new URL('../assets/imgs/results-screenshot-' + theme.value + ".png", import.meta.url).href)
+      imgURL: theme.value === 'dark' ? resultsDark : resultsLight
     },
-  ]
+  ])
 
   // FILE INPUT HANDLING
   const fileInput = ref(null)
@@ -103,17 +111,29 @@
   const clampProbability = () => {
     if (rewiringProbability.value > 1) rewiringProbability.value = 0.9999
   }
+  
+  const isRandomNetworkValid = () => {
+    if (networkModel.value === 'scale_free') {
+      if (randomNodes.value < 2 || randomEdges.value < 1) return false
+      return randomEdges.value < randomNodes.value
+    }
+
+    if (randomNodes.value < 3) return false
+    if (randomEdges.value < 2) return false
+    if (randomEdges.value >= randomNodes.value) return false
+    return rewiringProbability.value > 0 && rewiringProbability.value <= 1
+  }
 
   const popupValid = computed(() => {
-    if (randomNodes.value <= 2) return false
-    if (randomEdges.value <= 1) return false
-    if (randomNodes.value <= randomEdges.value) return false
-    if (networkModel.value === 'small_world' &&
-        (rewiringProbability.value <= 0 || rewiringProbability.value > 1)) return false
-    return true
-  })
+    return isRandomNetworkValid()
+  });
+
+  const handleRandomNetworkEnter = () => {
+    if (popupValid.value) submitRandomNetworkParams()
+  }
 
   const submitRandomNetworkParams = async () => {
+    if (!popupValid.value) return
 
     let formData = {
       nnodes: randomNodes.value,
@@ -197,23 +217,27 @@
         id="random-nodes"
         v-model.number="randomNodes"
         type="number"
-        min="0"
+        :min="networkModel === 'scale_free' ? 2 : 3"
         autofocus
-        @keypress.enter="submitRandomNetworkParams"
+        @keydown.enter.prevent="handleRandomNetworkEnter"
       />
 
-      <p v-if="randomNodes <= 2" class="input-error">The network must have at least 3 nodes.</p>
+      <p v-if="networkModel === 'scale_free' ? randomNodes < 2 : randomNodes < 3" class="input-error">
+        {{ networkModel === 'scale_free' ? 'The scale free network must have at least 2 nodes.' : 'The network must have at least 3 nodes.' }}
+      </p>
 
       <label for="random-edges">Number of starting edges for each node</label>
       <input
         id="random-edges"
         v-model.number="randomEdges"
         type="number"
-        min="0"
-        @keypress.enter="submitRandomNetworkParams"
+        :min="networkModel === 'scale_free' ? 1 : 2"
+        @keydown.enter.prevent="handleRandomNetworkEnter"
       />
-      <p v-if="randomNodes <= randomEdges" class="input-error">Nodes must be greater than edges.</p>
-      <p v-if="randomEdges <= 1" class="input-error">The network must have at least 2 edges.</p>
+      <p v-if="randomEdges >= randomNodes" class="input-error">Nodes must be greater than edges.</p>
+      <p v-if="networkModel === 'scale_free' ? randomEdges < 1 : randomEdges < 2" class="input-error">
+        {{ networkModel === 'scale_free' ? 'The scale free network must have at least 1 starting edge.' : 'The network must have at least 2 edges.' }}
+      </p>
 
       <p class="radio-group-title">Network model</p>
       <div class="popup-radio-group">
@@ -237,7 +261,7 @@
           min="0.01"
           max="1"
           @input="clampProbability"
-          @keypress.enter="submitRandomNetworkParams"
+          @keydown.enter.prevent="handleRandomNetworkEnter"
         />
       </div>
 

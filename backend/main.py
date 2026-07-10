@@ -3,7 +3,7 @@ import os
 import numpy as np
 import logging
 import argparse
-import uvicorn # <-- AGGIUNTO per avviare il server
+import uvicorn 
 import generate as gnt
 from scipy import sparse
 from scipy.sparse import csc_matrix
@@ -14,7 +14,7 @@ import matplotlib.pyplot as plt
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import Response
-from fastapi.middleware.cors import CORSMiddleware # <-- AGGIUNTO PER ELECTRON
+from fastapi.middleware.cors import CORSMiddleware 
 
 from utils import get_clusters, ClusterRequest, ExpRequest, ResRequest, RandomComplexNetworkRequest
 from utils import LowRankSubgraphCentrality, LowRankCommunicability, GaussSubgraphCentrality, GaussCommunicability
@@ -51,7 +51,6 @@ class BodySizeLimitMiddleware(BaseHTTPMiddleware):
 app = FastAPI()
 app.add_middleware(BodySizeLimitMiddleware, max_body_size=100 * 1024 * 1024)
 
-# CONFIGURAZIONE CORS PER ELECTRON (Consente chiamate da file://)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -60,7 +59,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# SOSTITUZIONE DI REDIS CON MEMORIA RAM LOCALE
 LOCAL_SESSION_STORE = {}
 
 def serialize_candidates_history(candidates_history):
@@ -84,7 +82,6 @@ def get_network_session(x_network_token: str = Header(...)) -> csc_matrix:
     if not x_network_token:
         raise HTTPException(status_code=400, detail="token is missing")
     
-    # Recupero dalla memoria locale
     session_data = LOCAL_SESSION_STORE.get(x_network_token)
     if not session_data:
         raise HTTPException(status_code=404, detail="session expired or not existing.")
@@ -130,10 +127,9 @@ async def overview(file: UploadFile = File(...)):
             return JSONResponse(status_code=400, content={"error": "must be a sparse adjacency matrix"})
         
         leig = eigsh(network, k=1, which='LA', return_eigenvectors=False)[0]
-        clusters = get_clusters(network)
+        clusters = {}
         token = token_urlsafe(32)
         
-        # Salvataggio in RAM
         LOCAL_SESSION_STORE[token] = {
             "network": network,
             "leig": leig,
@@ -197,7 +193,7 @@ def get_random_complex_network(request: RandomComplexNetworkRequest):
         network = gnt.generate_small_world_complex_network(request.nnodes, request.k, request.p)
 
     leig = eigsh(network, k=1, which='LA', return_eigenvectors=False)[0]
-    clusters = get_clusters(network)
+    clusters = {}
     token = token_urlsafe(32)
         
     LOCAL_SESSION_STORE[token] = {
@@ -222,7 +218,7 @@ async def get_plot(session: dict = Depends(get_network_session)):
     network = session["network"]
     plt.figure()
     plt.spy(network, precision=0.01, markersize=0.5)
-    plt.title("Scatterplot of the adjacency matrix")
+    plt.title("Sparsity pattern of the adjacency matrix")
     buf = io.BytesIO()
     plt.savefig(buf, format="png")
     plt.close()
@@ -503,11 +499,9 @@ async def get_stconvhyb(request: HybridSubgraphCentrality, session: dict = Depen
 async def get_positions_tiny_network(session: dict = Depends(get_network_session)):
     return entire_network_layout(network=session["network"])
 
-# --- AVVIO DEL SERVER PER ELECTRON ---
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--port", type=int, default=8123, help="Porta del server backend")
+    parser.add_argument("--port", type=int, default=8123, help="backend server port")
     args = parser.parse_args()
     
-    # Avvia Uvicorn sulla porta specificata (chiamata da localhost)
     uvicorn.run(app, host="127.0.0.1", port=args.port)

@@ -1,5 +1,5 @@
 <script setup>
-    import { ref, computed } from 'vue'
+    import { ref, computed, watch } from 'vue'
     import { useComplexNetworkStore } from '@/stores/complexNetwork';
     import { useComputationStore } from '@/stores/computationStore';
     import { computeMeasures, cancelComputeMeasures } from '@/utils/apis';
@@ -18,7 +18,7 @@
 
     const numberOfNodes = ref(1)
     const numberOfIterationsLowRank = ref(complexNetworkStore.nnodes)
-    const numberOfNodesLowRank = ref(1)
+    const numberOfNodesLowRank = ref(computationMethod.value === 'hyb' ? 1 : complexNetworkStore.nnodes)
 
     const nodeCommunicability = ref(1)
     const gaussTolerance = ref(1e-3)
@@ -29,6 +29,16 @@
 
     const error = ref('')
     const isComputing = ref(false)
+
+    watch(
+        [computationMethod, () => complexNetworkStore.nnodes],
+        ([method, nnodes]) => {
+            if (method === 'lr') {
+                numberOfNodesLowRank.value = nnodes
+            }
+        },
+        { immediate: true }
+    )
 
     nprogress.configure({
         showSpinner: false,
@@ -41,6 +51,12 @@
         cancelComputeMeasures()
         nprogress.done()
     }
+
+    function handleSubmitOnEnter () {
+        if (parametersValid.value) {
+            submit()
+        }
+    }
     
     async function submit () {
         if (isComputing.value) return
@@ -51,7 +67,7 @@
             matFun: matrixFunction.value, 
             numNodes: numberOfNodes.value, 
             numIterLR: numberOfIterationsLowRank.value, 
-            numNodesLR: numberOfNodesLowRank.value, 
+            numNodesLR: computationMethod.value === 'lr' ? complexNetworkStore.nnodes : numberOfNodesLowRank.value, 
             nodeComm: nodeCommunicability.value - 1, // fix because Python arrays are zero based 
             gaussTol: gaussTolerance.value, 
             LRTol: lowRankTolerance.value, 
@@ -113,7 +129,7 @@
                 </svg>
                 Last computation
         </RouterLink>
-        <form @submit.prevent="submit()" class="params-form">
+        <form @submit.prevent="submit()" @keydown.enter.prevent="handleSubmitOnEnter" class="params-form">
             <label for="numberOfNodes">Number of nodes to identify</label>
             <input type="number" v-model="numberOfNodes" step="1" min="0" id="numberOfNodes">
             <p v-if="numberOfNodes > complexNetworkStore.nnodes" class="input-error">The number of nodes to identify must be smaller than the number of nodes</p>
@@ -124,7 +140,7 @@
             
             <label for="numberNodesLowRank" v-if="computationMethod === 'hyb'">Number of nodes to filter with low rank</label>
             <input type="number" v-model="numberOfNodesLowRank" step="1" min="0" id="numberNodesLowRank" v-if="computationMethod === 'hyb'">
-            <p v-if="(numberOfNodesLowRank < numberOfNodes) && computationMethod !== 'gauss'" class="input-error">Number of nodes for low rank must be equal or smaller than the number of nodes to identify</p>
+            <p v-if="(numberOfNodesLowRank < numberOfNodes) && computationMethod !== 'gauss'" class="input-error">Number of nodes for low rank must be equal or greater than the number of nodes to identify</p>
 
             <div id="radioButtons">
                 <legend>Choose the matrix function</legend>

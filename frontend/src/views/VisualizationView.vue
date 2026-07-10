@@ -132,7 +132,8 @@
 
             sigmaInstance.value = new Sigma(graph, container, {
                 labelRenderedSizeThreshold: 100,
-                defaultNodeColor: "yellow", 
+                defaultNodeColor: "#5cb0cf",// localStorage.getItem('vipnodes-theme') === 'light' ? "#5cb0cf" : "yellow",
+                defaultEdgeColor: "grey",
                 zIndex: true, 
             })
             sigmaCamera.value = sigmaInstance.value.getCamera()

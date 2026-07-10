@@ -341,7 +341,7 @@
     <InfoSection
         class="info-section"
         :class="{ 'info-section--zoomed': zoomedSection === 'scatterplot' }"
-        :title="'Scatterplot of the adjacency matrix'"
+        :title="'Sparsity pattern of the adjacency matrix'"
         :description="'Each blue dot represents an edge of the complex network. \n\n\n\n\nClick to zoom the entire section. '"
         :viz="'scatterplot'"
         :interaction-scale="zoomedSection === 'scatterplot' ? 2 : 1"

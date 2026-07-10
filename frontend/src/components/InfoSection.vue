@@ -43,15 +43,25 @@
 
     // loads the scatterplot of the adjacency matrix
     async function loadPlot() {
-        const res = await fetch("/api/plot", {
-            method: "POST", 
-            headers: {
-                "X-Network-token": complexNetworkStore.token
-            }
-        })
+        const API_BASE = 'http://127.0.0.1:8123'; // <-- Aggiunto per Electron
+        
+        try {
+            const res = await fetch(`${API_BASE}/api/plot`, {
+                method: "POST", 
+                headers: {
+                    "X-Network-token": complexNetworkStore.token
+                }
+            })
 
-        const blob = await res.blob()
-        imageUrl.value = URL.createObjectURL(blob)
+            if (res.ok) {
+                const blob = await res.blob()
+                imageUrl.value = URL.createObjectURL(blob)
+            } else {
+                console.error("error API plot")
+            }
+        } catch (err) {
+            console.error("error connecting to /api/plot", err)
+        }
     }
 
     async function loadLineChartEigenvalues() {
