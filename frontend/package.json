@@ -1,6 +1,12 @@
 {
   "name": "vipnodes",
   "version": "1.0.0",
+  "description": "VIPNODES Desktop",
+  "author": "Danilo Lecca",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/daniloLecca/vipnodes-desktop.git"
+  },
   "private": true,
   "type": "module",
   "main": "electron-main.js",
@@ -9,10 +15,10 @@
     "build": "vite build",
     "preview": "vite preview",
     "electron:start": "electron .",
-    "electron:build": "vite build && electron-builder",
-    "electron:build:win": "vite build && electron-builder --win",
-    "electron:build:linux": "vite build && electron-builder --linux",
-    "electron:build:mac": "vite build && electron-builder --mac"
+    "electron:build": "vite build && electron-builder --publish never",
+    "electron:build:win": "vite build && electron-builder --win --publish never",
+    "electron:build:linux": "vite build && electron-builder --linux --publish never",
+    "electron:build:mac": "vite build && electron-builder --mac --publish never"
   },
   "build": {
     "appId": "com.vipnodes.desktop",
@@ -20,6 +26,7 @@
     "directories": {
       "output": "release"
     },
+    "publish": null,
     "files": [
       "dist/**/*",
       "electron-main.js"
