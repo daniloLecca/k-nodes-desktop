@@ -1,20 +1,21 @@
 import { app, BrowserWindow } from 'electron';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { spawn } from 'child_process';
+import { spawn, exec } from 'child_process';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 let mainWindow;
 let pythonProcess;
+let isBackendReady = false;
 
 function startBackend() {
   const isDev = !app.isPackaged;
   const port = 8123;
   
   if (isDev) {
-    console.log("Modalità Sviluppo: Il backend python deve essere avviato manualmente su porta 8123");
+    console.log("Modalità Sviluppo: Il backend Python deve essere avviato manualmente su porta 8123");
   } else {
     const executableName = process.platform === 'win32' ? 'backend-api.exe' : 'backend-api';
     const backendPath = path.join(process.resourcesPath, 'backend-dist', executableName);
@@ -30,7 +31,7 @@ function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1280,
     height: 800,
-    icon: path.join(__dirname, 'public', 'vipnodes-logo.png'),
+    icon: path.join(__dirname, 'public', process.platform === 'win32' ? 'vipnodes-logo.ico' : 'vipnodes-logo.png'),
     webPreferences: {
       nodeIntegration: true,
       contextIsolation: false
@@ -44,8 +45,6 @@ function createWindow() {
     mainWindow.loadFile(path.join(__dirname, 'dist', 'index.html'));
   }
 }
-
-let isBackendReady = false; 
 
 function waitForBackend(callback) {
   console.log("In attesa che il server Python sia pronto...");
@@ -61,7 +60,7 @@ function waitForBackend(callback) {
           setTimeout(checkServer, 500);
         }
       })
-      .catch(err => {
+      .catch(() => {
         setTimeout(checkServer, 500);
       });
   };
@@ -71,7 +70,6 @@ function waitForBackend(callback) {
 
 app.whenReady().then(() => {
   startBackend();
-  
   waitForBackend(createWindow); 
 
   app.on('activate', function () {
@@ -87,6 +85,10 @@ app.on('window-all-closed', function () {
 
 app.on('will-quit', () => {
   if (pythonProcess) {
-    pythonProcess.kill();
+    if (process.platform === 'win32') {
+      exec(`taskkill /pid ${pythonProcess.pid} /T /F`);
+    } else {
+      pythonProcess.kill();
+    }
   }
 });

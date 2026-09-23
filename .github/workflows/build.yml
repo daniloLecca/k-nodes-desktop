@@ -1,0 +1,76 @@
+name: VIPNODES Desktop Build
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        os: [windows-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Build Backend (Windows)
+        if: matrix.os == 'windows-latest'
+        shell: pwsh
+        run: |
+          cd backend
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pyinstaller
+          pyinstaller --name backend-api --onedir `
+            --collect-all networkx `
+            --collect-all sknetwork `
+            --collect-all scipy `
+            --collect-all fa2 `
+            --collect-all primme `
+            --collect-all uvicorn `
+            --hidden-import multipart `
+            --hidden-import python-multipart `
+            main.py
+
+      - name: Build Backend (Linux)
+        if: matrix.os == 'ubuntu-latest'
+        shell: bash
+        run: |
+          cd backend
+          python3 -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pyinstaller
+          pyinstaller --name backend-api --onedir \
+            --collect-all networkx \
+            --collect-all sknetwork \
+            --collect-all scipy \
+            --collect-all fa2 \
+            --collect-all primme \
+            --collect-all uvicorn \
+            --hidden-import multipart \
+            --hidden-import python-multipart \
+            main.py
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Build Electron App
+        shell: bash
+        run: |
+          cd frontend
+          npm install
+          npm run electron:build
+
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: VIPNODES-${{ matrix.os }}
+          path: frontend/release/*.*

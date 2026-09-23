@@ -9,7 +9,10 @@
     "build": "vite build",
     "preview": "vite preview",
     "electron:start": "electron .",
-    "electron:build": "vite build && electron-builder"
+    "electron:build": "vite build && electron-builder",
+    "electron:build:win": "vite build && electron-builder --win",
+    "electron:build:linux": "vite build && electron-builder --linux",
+    "electron:build:mac": "vite build && electron-builder --mac"
   },
   "build": {
     "appId": "com.vipnodes.desktop",
@@ -34,7 +37,7 @@
     },
     "win": {
       "target": "nsis", 
-      "icon": "public/vipnodes-logo.png"
+      "icon": "public/vipnodes-logo.ico"
     },
     "linux": {
       "target": "AppImage", 
