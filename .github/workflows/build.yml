@@ -37,6 +37,7 @@ jobs:
           pip install -r requirements.txt
           pip install pyinstaller
           pyinstaller --name backend-api --onedir `
+            --collect-all numpy `
             --collect-all networkx `
             --collect-all sknetwork `
             --collect-all scipy `
@@ -57,6 +58,7 @@ jobs:
           pip install -r requirements.txt
           pip install pyinstaller
           pyinstaller --name backend-api --onedir \
+            --collect-all numpy \
             --collect-all networkx \
             --collect-all sknetwork \
             --collect-all scipy \
