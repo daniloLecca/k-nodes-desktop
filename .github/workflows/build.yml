@@ -20,7 +20,7 @@ jobs:
         with:
           python-version: '3.10'
 
-      # --- SETUP SYS DEPENDENCIES (LINUX) ---
+      # --- SETUP SYSTEM DEPENDENCIES (LINUX) ---
       - name: Install System Dependencies (Linux)
         if: matrix.os == 'ubuntu-latest'
         run: |
@@ -34,7 +34,7 @@ jobs:
         run: |
           cd backend
           python -m pip install --upgrade pip setuptools wheel
-          pip install "numpy<2.0.0"
+          pip install "numpy<2.0.0,>=1.24.0"
           pip install -r requirements.txt
           pip install pyinstaller
           pyinstaller --name backend-api --onedir --clean `
@@ -45,6 +45,23 @@ jobs:
             --collect-all fa2 `
             --collect-all primme `
             --collect-all uvicorn `
+            --collect-all anyio `
+            --collect-all starlette `
+            --collect-all fastapi `
+            --hidden-import uvicorn `
+            --hidden-import uvicorn.config `
+            --hidden-import uvicorn.main `
+            --hidden-import uvicorn.loops `
+            --hidden-import uvicorn.loops.auto `
+            --hidden-import uvicorn.loops.asyncio `
+            --hidden-import uvicorn.protocols `
+            --hidden-import uvicorn.protocols.http `
+            --hidden-import uvicorn.protocols.http.auto `
+            --hidden-import uvicorn.protocols.http.h11_impl `
+            --hidden-import uvicorn.lifespan `
+            --hidden-import uvicorn.lifespan.on `
+            --hidden-import uvicorn.lifespan.off `
+            --hidden-import anyio._backends._asyncio `
             --hidden-import multipart `
             --hidden-import python-multipart `
             main.py
@@ -56,7 +73,7 @@ jobs:
         run: |
           cd backend
           python3 -m pip install --upgrade pip setuptools wheel
-          pip install "numpy<2.0.0"
+          pip install "numpy<2.0.0,>=1.24.0"
           pip install -r requirements.txt
           pip install pyinstaller
           pyinstaller --name backend-api --onedir --clean \
@@ -67,6 +84,23 @@ jobs:
             --collect-all fa2 \
             --collect-all primme \
             --collect-all uvicorn \
+            --collect-all anyio \
+            --collect-all starlette \
+            --collect-all fastapi \
+            --hidden-import uvicorn \
+            --hidden-import uvicorn.config \
+            --hidden-import uvicorn.main \
+            --hidden-import uvicorn.loops \
+            --hidden-import uvicorn.loops.auto \
+            --hidden-import uvicorn.loops.asyncio \
+            --hidden-import uvicorn.protocols \
+            --hidden-import uvicorn.protocols.http \
+            --hidden-import uvicorn.protocols.http.auto \
+            --hidden-import uvicorn.protocols.http.h11_impl \
+            --hidden-import uvicorn.lifespan \
+            --hidden-import uvicorn.lifespan.on \
+            --hidden-import uvicorn.lifespan.off \
+            --hidden-import anyio._backends._asyncio \
             --hidden-import multipart \
             --hidden-import python-multipart \
             main.py
@@ -87,7 +121,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      # --- SAVING FILE INSTALLER (ARTIFACTS) ---
+      # --- SAVE ARTIFACTS ---
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4
         with:

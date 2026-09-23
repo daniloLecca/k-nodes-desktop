@@ -693,4 +693,12 @@ if __name__ == "__main__":
     parser.add_argument("--port", type=int, default=8123, help="backend server port")
     args = parser.parse_args()
     
-    uvicorn.run(app, host="127.0.0.1", port=args.port)
+    # on Windows we use explicitly loop='asyncio' e http='h11' to ensure portability. 
+    is_win = os.name == 'nt'
+    uvicorn.run(
+        app, 
+        host="127.0.0.1", 
+        port=args.port,
+        loop="asyncio" if is_win else "auto",
+        http="h11" if is_win else "auto"
+    )
