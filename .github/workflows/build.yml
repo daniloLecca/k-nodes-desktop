@@ -36,8 +36,11 @@ jobs:
           python -m pip install --upgrade pip setuptools wheel
           pip install -r requirements.txt
           pip install pyinstaller
-          pyinstaller --name backend-api --onedir `
+          pyinstaller --name backend-api --onedir --clean `
             --collect-all numpy `
+            --collect-all numpy._core `
+            --hidden-import numpy `
+            --hidden-import numpy._core `
             --collect-all networkx `
             --collect-all sknetwork `
             --collect-all scipy `
@@ -57,8 +60,11 @@ jobs:
           python3 -m pip install --upgrade pip setuptools wheel
           pip install -r requirements.txt
           pip install pyinstaller
-          pyinstaller --name backend-api --onedir \
+          pyinstaller --name backend-api --onedir --clean \
             --collect-all numpy \
+            --collect-all numpy._core \
+            --hidden-import numpy \
+            --hidden-import numpy._core \
             --collect-all networkx \
             --collect-all sknetwork \
             --collect-all scipy \
