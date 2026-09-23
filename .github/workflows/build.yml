@@ -6,6 +6,7 @@ on:
 jobs:
   build:
     strategy:
+      fail-fast: false
       matrix:
         os: [windows-latest, ubuntu-latest]
     runs-on: ${{ matrix.os }}
@@ -19,12 +20,20 @@ jobs:
         with:
           python-version: '3.10'
 
+      # --- SETUP SYS DEPENDENCIES (LINUX) ---
+      - name: Install System Dependencies (Linux)
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libblas-dev liblapack-dev gfortran libfuse2
+
+      # --- BUILD BACKEND (WINDOWS) ---
       - name: Build Backend (Windows)
         if: matrix.os == 'windows-latest'
         shell: pwsh
         run: |
           cd backend
-          python -m pip install --upgrade pip
+          python -m pip install --upgrade pip setuptools wheel
           pip install -r requirements.txt
           pip install pyinstaller
           pyinstaller --name backend-api --onedir `
@@ -38,12 +47,13 @@ jobs:
             --hidden-import python-multipart `
             main.py
 
+      # --- BUILD BACKEND (LINUX) ---
       - name: Build Backend (Linux)
         if: matrix.os == 'ubuntu-latest'
         shell: bash
         run: |
           cd backend
-          python3 -m pip install --upgrade pip
+          python3 -m pip install --upgrade pip setuptools wheel
           pip install -r requirements.txt
           pip install pyinstaller
           pyinstaller --name backend-api --onedir \
@@ -57,20 +67,28 @@ jobs:
             --hidden-import python-multipart \
             main.py
 
+      # --- SETUP NODE.JS ---
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '20'
 
+      # --- BUILD FRONTEND & ELECTRON ---
       - name: Build Electron App
         shell: bash
         run: |
           cd frontend
           npm install
           npm run electron:build
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      # --- SAVING FILE INSTALLER (ARTIFACTS) ---
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4
         with:
           name: VIPNODES-${{ matrix.os }}
-          path: frontend/release/*.*
+          path: |
+            frontend/release/*.exe
+            frontend/release/*.AppImage
+            frontend/release/*.deb
