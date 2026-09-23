@@ -85,7 +85,6 @@ pnpm-debug.log*
 # ignora le build di python
 backend/dist/
 backend/build/
-*.spec
 
 # ignora le build di electron
 frontend/release/
