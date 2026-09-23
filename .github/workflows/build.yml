@@ -15,10 +15,21 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Setup Python
+      # --- SETUP PYTHON STANDARD FOR LINUX ---
+      - name: Setup Python (Linux)
+        if: matrix.os == 'ubuntu-latest'
         uses: actions/setup-python@v5
         with:
           python-version: '3.10'
+
+      # --- SETUP MINICONDA FOR WINDOWS (provides precompiled primme) ---
+      - name: Setup Conda (Windows)
+        if: matrix.os == 'windows-latest'
+        uses: conda-incubator/setup-miniconda@v3
+        with:
+          python-version: '3.10'
+          activate-environment: test-env
+          channels: conda-forge,defaults
 
       # --- SETUP SYSTEM DEPENDENCIES (LINUX) ---
       - name: Install System Dependencies (Linux)
@@ -30,38 +41,24 @@ jobs:
       # --- BUILD BACKEND (WINDOWS) ---
       - name: Build Backend (Windows)
         if: matrix.os == 'windows-latest'
-        shell: pwsh
+        shell: pwsh -l {0}
         run: |
           cd backend
           if (Test-Path dist) { Remove-Item -Recurse -Force dist }
           if (Test-Path build) { Remove-Item -Recurse -Force build }
 
-          # 1. Installa MinGW per compilare PRIMME con standard C99
-          choco install mingw -y --no-progress
-          $env:Path = "C:\tools\mingw64\bin;C:\ProgramData\chocolatey\bin;" + $env:Path
+          # 1. Installa primme e lo stack scientifico precompilato da conda-forge (Zero errori di compilazione C)
+          conda install -y -c conda-forge primme "numpy<2.0.0,>=1.24.0" scipy networkx
 
-          # 2. Configura distutils per usare MinGW come compilatore
-          $pythonDir = python -c "import sys; print(sys.prefix)"
-          $distutilsCfg = Join-Path $pythonDir "lib\distutils\distutils.cfg"
-          $distutilsDir = Split-Path $distutilsCfg
-          if (-not (Test-Path $distutilsDir)) { New-Item -ItemType Directory -Path $distutilsDir -Force }
-          "[build]`ncompiler=mingw32" | Out-File -FilePath $distutilsCfg -Encoding ascii
-
-          # 3. Tooling Python e NumPy < 2.0
-          python -m pip install --upgrade pip "setuptools<70.0.0" wheel
-          pip install "numpy<2.0.0,>=1.24.0"
-
-          # 4. Compilazione e installazione di primme
-          pip install primme==3.2.3 --no-build-isolation
-
-          # 5. Installazione delle restanti dipendenze
+          # 2. Installa le restanti dipendenze con pip
+          pip install --upgrade pip
           pip install -r requirements.txt
           pip install pyinstaller
 
-          # 6. Compilazione eseguibile backend
+          # 3. Compila con PyInstaller usando il file spec
           pyinstaller --clean backend-api.spec
 
-          # 7. Verifica dimensione eseguibile
+          # 4. Verifica dimensione
           $exe = Get-Item dist\backend-api.exe
           Write-Host "Dimensione generata: $($exe.Length) bytes"
           if ($exe.Length -lt 80000000) {
@@ -76,7 +73,7 @@ jobs:
         run: |
           cd backend
           rm -rf dist build
-          python3 -m pip install --upgrade pip "setuptools<70.0.0" wheel
+          python3 -m pip install --upgrade pip setuptools wheel
           pip install "numpy<2.0.0,>=1.24.0"
           pip install -r requirements.txt
           pip install pyinstaller
