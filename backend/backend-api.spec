@@ -4,13 +4,25 @@ from PyInstaller.utils.hooks import collect_all, collect_submodules
 datas = []
 binaries = []
 hiddenimports = [
+    'uvicorn',
+    'uvicorn.config',
+    'uvicorn.main',
+    'uvicorn.loops',
+    'uvicorn.loops.auto',
+    'uvicorn.loops.asyncio',
+    'uvicorn.protocols',
+    'uvicorn.protocols.http',
+    'uvicorn.protocols.http.auto',
+    'uvicorn.protocols.http.h11_impl',
+    'uvicorn.lifespan',
+    'uvicorn.lifespan.on',
+    'uvicorn.lifespan.off',
+    'anyio._backends._asyncio',
     'multipart',
     'python_multipart',
-    'anyio._backends._asyncio',
 ]
 
-# Raccoglie in modo forzato tutti i pacchetti critici e i loro moduli binari
-packages_to_collect = [
+packages = [
     'numpy',
     'networkx',
     'sknetwork',
@@ -24,11 +36,14 @@ packages_to_collect = [
     'h11',
 ]
 
-for pkg in packages_to_collect:
-    pkg_datas, pkg_binaries, pkg_hidden = collect_all(pkg)
-    datas += pkg_datas
-    binaries += pkg_binaries
-    hiddenimports += pkg_hidden
+for pkg in packages:
+    try:
+        d, b, h = collect_all(pkg)
+        datas += d
+        binaries += b
+        hiddenimports += h
+    except Exception as e:
+        print(f"Warning collecting {pkg}: {e}")
 
 hiddenimports += collect_submodules('uvicorn')
 
@@ -51,6 +66,7 @@ exe = EXE(
     pyz,
     a.scripts,
     a.binaries,
+    a.zipfiles,
     a.datas,
     [],
     name='backend-api',
@@ -58,7 +74,6 @@ exe = EXE(
     bootloader_ignore_signals=False,
     strip=False,
     upx=False,
-    upx_exclude=[],
     runtime_tmpdir=None,
     console=True,
     disable_windowed_traceback=False,

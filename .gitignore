@@ -10,22 +10,18 @@ Thumbs.db
 *.swo
 
 # --- PYTHON (Backend) ---
-# Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
 *$py.class
 
-# Virtual Environments (quelli locali)
 .venv/
 venv/
 env/
 ENV/
 
-# Environment variables (potrebbero contenere password!)
 .env
 .env.*
 
-# Distribution / Packaging
 build/
 develop-eggs/
 dist/
@@ -41,34 +37,25 @@ wheels/
 *.egg-info/
 .installed.cfg
 *.egg
-
-# Jupyter Notebooks (se li usi per analisi dati)
 .ipynb_checkpoints
 
 # --- NODE.JS / VUE (Frontend) ---
-# Dependencies (MOLTO IMPORTANTE: non committare mai node_modules)
 node_modules/
 /frontend/node_modules/
-
-# Production Build Output
 /frontend/dist/
 
-# Logs
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 
-# Environment variables
 .env.local
 .env.development.local
 .env.test.local
 .env.production.local
 
-# Editor directories and files
 .vscode/*
 !.vscode/extensions.json
-.idea
 *.suo
 *.ntvs*
 *.njsproj
@@ -76,16 +63,14 @@ pnpm-debug.log*
 *.sw?
 
 # --- DOCKER ---
-# A volte si creano file temporanei docker, ma di solito nulla da ignorare qui
-# a meno che tu non abbia volumi mappati dentro la cartella del progetto
-# che contengono dati (es. database sqlite)
 *.sqlite3
 *.db
 
-# ignora le build di python
+# --- BUILD ARTIFACTS ---
 backend/dist/
 backend/build/
+*.spec
+!backend/backend-api.spec
 
-# ignora le build di electron
 frontend/release/
 frontend/backend-dist/

@@ -20,7 +20,7 @@ jobs:
         with:
           python-version: '3.10'
 
-      # --- SETUP SYSTEM DEPENDENCY (LINUX) ---
+      # --- SETUP SYSTEM DEPENDENCIES (LINUX) ---
       - name: Install System Dependencies (Linux)
         if: matrix.os == 'ubuntu-latest'
         run: |
@@ -33,11 +33,41 @@ jobs:
         shell: pwsh
         run: |
           cd backend
-          python -m pip install --upgrade pip setuptools wheel
+          if (Test-Path dist) { Remove-Item -Recurse -Force dist }
+          if (Test-Path build) { Remove-Item -Recurse -Force build }
+
+          # 1. Installa MinGW per compilare PRIMME con standard C99
+          choco install mingw -y --no-progress
+          $env:Path = "C:\tools\mingw64\bin;C:\ProgramData\chocolatey\bin;" + $env:Path
+
+          # 2. Configura distutils per usare MinGW come compilatore
+          $pythonDir = python -c "import sys; print(sys.prefix)"
+          $distutilsCfg = Join-Path $pythonDir "lib\distutils\distutils.cfg"
+          $distutilsDir = Split-Path $distutilsCfg
+          if (-not (Test-Path $distutilsDir)) { New-Item -ItemType Directory -Path $distutilsDir -Force }
+          "[build]`ncompiler=mingw32" | Out-File -FilePath $distutilsCfg -Encoding ascii
+
+          # 3. Tooling Python e NumPy < 2.0
+          python -m pip install --upgrade pip "setuptools<70.0.0" wheel
           pip install "numpy<2.0.0,>=1.24.0"
+
+          # 4. Compilazione e installazione di primme
+          pip install primme==3.2.3 --no-build-isolation
+
+          # 5. Installazione delle restanti dipendenze
           pip install -r requirements.txt
           pip install pyinstaller
+
+          # 6. Compilazione eseguibile backend
           pyinstaller --clean backend-api.spec
+
+          # 7. Verifica dimensione eseguibile
+          $exe = Get-Item dist\backend-api.exe
+          Write-Host "Dimensione generata: $($exe.Length) bytes"
+          if ($exe.Length -lt 80000000) {
+            Write-Error "ERRORE: L'eseguibile e troppo piccolo ($($exe.Length) bytes), mancano librerie!"
+            exit 1
+          }
 
       # --- BUILD BACKEND (LINUX) ---
       - name: Build Backend (Linux)
@@ -45,11 +75,13 @@ jobs:
         shell: bash
         run: |
           cd backend
-          python3 -m pip install --upgrade pip setuptools wheel
+          rm -rf dist build
+          python3 -m pip install --upgrade pip "setuptools<70.0.0" wheel
           pip install "numpy<2.0.0,>=1.24.0"
           pip install -r requirements.txt
           pip install pyinstaller
           pyinstaller --clean backend-api.spec
+          ls -lh dist/backend-api
 
       # --- SETUP NODE.JS ---
       - name: Setup Node.js
