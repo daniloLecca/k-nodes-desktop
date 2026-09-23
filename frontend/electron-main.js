@@ -1,4 +1,4 @@
-import { app, BrowserWindow } from 'electron';
+import { app, BrowserWindow, dialog } from 'electron';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { spawn, exec } from 'child_process';
@@ -15,7 +15,7 @@ function startBackend() {
   const port = 8123;
   
   if (isDev) {
-    console.log("Modalità Sviluppo: Il backend Python deve essere avviato manualmente su porta 8123");
+    console.log("Dev mode: server must be started manually on port 8123.");
   } else {
     const executableName = process.platform === 'win32' ? 'backend-api.exe' : 'backend-api';
     const backendPath = path.join(process.resourcesPath, 'backend-dist', executableName);
@@ -24,6 +24,17 @@ function startBackend() {
 
     pythonProcess.stdout.on('data', (data) => console.log(`Backend: ${data}`));
     pythonProcess.stderr.on('data', (data) => console.error(`Backend Err: ${data}`));
+
+    // catch if the backend cannot start
+    pythonProcess.on('error', (err) => {
+      dialog.showErrorBox("Error starting backend", `Cannot run the Python process:\n${err.message}`);
+    });
+
+    pythonProcess.on('exit', (code, signal) => {
+      if (code !== 0 && code !== null) {
+        dialog.showErrorBox("Backend crash", `Python backend has unexpectedly shutted down with code: ${code}`);
+      }
+    });
   }
 }
 
