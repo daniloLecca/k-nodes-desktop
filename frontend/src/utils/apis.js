@@ -2,9 +2,67 @@ import { useComplexNetworkStore } from "@/stores/complexNetwork";
 import { useComputationStore } from "@/stores/computationStore";
 import router from "@/router";
 
-const API_BASE = 'http://127.0.0.1:8123'; // <-- INDIRIZZO DEL BACKEND PYTHON IN ELECTRON
-
 let computeMeasuresController = null
+
+const legacyCentralityMeasures = new Set(['sgcen', 'comm', 'stconv'])
+
+function getComputeRoute(computationData) {
+  if (!legacyCentralityMeasures.has(computationData.cenIndex)) {
+    const routeMap = {
+      degree: '/api/degreecen',
+      eigenvector: '/api/eigenvectorcen',
+      katz: '/api/katzcen',
+      pagerank: '/api/pagerankcen',
+      betweenness: '/api/betweennesscen',
+      closeness: '/api/closenesscen',
+    }
+
+    return routeMap[computationData.cenIndex]
+  }
+
+  return `/api/${computationData.cenIndex}${computationData.compMethod}`
+}
+
+function buildRequestBody(computationData) {
+  if (!legacyCentralityMeasures.has(computationData.cenIndex)) {
+    const requestBody = {
+      nnodes: computationData.numNodes,
+    }
+
+    if (computationData.cenIndex === 'eigenvector') {
+      requestBody.max_iter = computationData.maxIter
+      requestBody.tol = computationData.tol
+    }
+
+    if (computationData.cenIndex === 'katz') {
+      requestBody.alpha = computationData.alpha
+      requestBody.beta = computationData.beta
+      requestBody.max_iter = computationData.maxIter
+      requestBody.tol = computationData.tol
+    }
+
+    if (computationData.cenIndex === 'pagerank') {
+      requestBody.alpha = computationData.alpha
+      requestBody.max_iter = computationData.maxIter
+      requestBody.tol = computationData.tol
+    }
+
+    return requestBody
+  }
+
+  return {
+    shift: computationData.shift,
+    fun_name: computationData.matFun === 'exponent' ? 'exp' : 'res',
+    nnodes: computationData.numNodes,
+    low_rank_nnodes: computationData.numNodesLR,
+    alpha: computationData.alphaRes,
+    max_iter: computationData.numIterLR,
+    batch_size: computationData.eigenSZ,
+    gauss_tol: computationData.gaussTol,
+    low_rank_tol: computationData.LRTol,
+    i: computationData.nodeComm,
+  }
+}
 
 async function sendFile (uploadedFile) {
     const complexNetworkStore = useComplexNetworkStore()
@@ -15,7 +73,7 @@ async function sendFile (uploadedFile) {
     formData.append('file', uploadedFile);
 
     try {
-      const response = await fetch(`${API_BASE}/api/`, {
+      const response = await fetch('/api/', {
       method: 'POST', 
       body: formData
     })
@@ -26,12 +84,71 @@ async function sendFile (uploadedFile) {
       error = payload?.error || payload?.detail || 'request not valid (400).'
       return error
     }
+
     if (!response.ok) {
       error = payload?.error || payload?.detail || `server error (${response.status}).`
       return error
     }
 
     const result = payload;
+    
+
+    console.log('Upload success: ', result);
+    complexNetworkStore.fileName = result["filename"]
+    complexNetworkStore.token = result["token"]
+    complexNetworkStore.nnodes = result["nodes"]
+    complexNetworkStore.edges = result["edges"]
+    complexNetworkStore.largestEigenvalue = result["largest eigenvalue"]
+    complexNetworkStore.maxAlpha = result["max value for alpha"]
+    complexNetworkStore.selfLoops = result["self loops"]
+    complexNetworkStore.clusters = result["clusters"]
+    
+    router.push("/overview");
+
+    } catch (err) {
+      error = 'network error, check your Internet connection and retry.'
+      console.log(err.message)
+    }
+
+    return error
+  }
+
+
+  async function generateRandomNetwork (formData, p) {
+    const complexNetworkStore = useComplexNetworkStore()
+    let error = ''
+
+    if (formData.model === 'small_world' || formData.model === 'random_model') {
+      formData["p"] = p;
+    }
+
+    console.log('Random network params:', formData)
+
+    try {
+      const response = await fetch('/api/random', {
+      method: 'POST', 
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify(formData)
+    })
+
+    const payload = await response.json().catch(() => ({}));
+
+    if (response.status === 400) {
+      error = payload?.error || payload?.detail || 'request not valid (400).'
+      return error
+    }
+
+    if (!response.ok) {
+      error = payload?.error || payload?.detail || `server error (${response.status}).`
+      return error
+    }
+
+    const result = payload;
+    
+
+    console.log('Upload successful');
     complexNetworkStore.fileName = result["filename"]
     complexNetworkStore.token = result["token"]
     complexNetworkStore.nnodes = result["nodes"]
@@ -45,42 +162,9 @@ async function sendFile (uploadedFile) {
 
     } catch (err) {
       error= 'network error, check your Internet connection and retry.'
+      console.log(err.message)
     }
-    return error
-  }
 
-
-  async function generateRandomNetwork (formData, p) {
-    const complexNetworkStore = useComplexNetworkStore()
-    let error = ''
-    if (formData.model === 'small_world') formData["p"] = p;
-
-    try {
-      const response = await fetch(`${API_BASE}/api/random`, {
-      method: 'POST', 
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(formData)
-    })
-
-    const payload = await response.json().catch(() => ({}));
-
-    if (response.status === 400) return payload?.error || 'request not valid.'
-    if (!response.ok) return payload?.error || `server error.`
-
-    const result = payload;
-    complexNetworkStore.fileName = result["filename"]
-    complexNetworkStore.token = result["token"]
-    complexNetworkStore.nnodes = result["nodes"]
-    complexNetworkStore.edges = result["edges"]
-    complexNetworkStore.largestEigenvalue = result["largest eigenvalue"]
-    complexNetworkStore.maxAlpha = result["max value for alpha"]
-    complexNetworkStore.selfLoops = result["self loops"]
-    complexNetworkStore.clusters = result["clusters"]
-    
-    router.push("/overview");
-    } catch (err) {
-      error= 'network error.'
-    }
     return error
   }
 
@@ -89,24 +173,16 @@ async function sendFile (uploadedFile) {
     const complexNetworkStore = useComplexNetworkStore()
     const computationStore = useComputationStore()
 
-    if (computeMeasuresController) computeMeasuresController.abort()
+    if (computeMeasuresController) {
+      computeMeasuresController.abort()
+    }
     computeMeasuresController = new AbortController()
 
-    const route = `${API_BASE}/api/${computationData["cenIndex"]}${computationData.compMethod}`
+    const route = getComputeRoute(computationData)
+
     let error = ''
 
-    const requestBody = {
-      shift: computationData.shift, 
-      fun_name: computationData.matFun === 'exponent' ? 'exp' : 'res', 
-      nnodes: computationData.numNodes, 
-      low_rank_nnodes: computationData.numNodesLR, 
-      alpha: computationData.alphaRes, 
-      max_iter: computationData.numIterLR, 
-      batch_size: computationData.eigenSZ, 
-      gauss_tol: computationData.gaussTol, 
-      low_rank_tol: computationData.LRTol, 
-      i: computationData.nodeComm
-    }
+    const requestBody = buildRequestBody(computationData)
 
     try {
       const response = await fetch(route, {
@@ -121,19 +197,29 @@ async function sendFile (uploadedFile) {
 
       const payload = await response.json().catch(() => ({}));
 
-      if (response.status === 400 || !response.ok) {
-        error = payload?.error || 'server error'
+      if (response.status === 400) {
+        error = payload?.error || payload?.detail || 'request not valid (400).'
         return { error, aborted: false }
       }
 
+      if (!response.ok) {
+        error = payload?.error || payload?.detail || `server error (${response.status}).`
+        return { error, aborted: false }
+      }
+
+      const result = payload;
+
       computationStore.$patch({
         computationData,
-        computationResult: payload,
+        computationResult: result,
       })
 
     } catch (err) {
-      if (err?.name === 'AbortError') return { error: '', aborted: true }
-      error = 'network error.'
+      if (err?.name === 'AbortError') {
+        return { error: '', aborted: true }
+      }
+      console.log(err)
+      error = 'network error, check your Internet connection and retry.'
       return { error, aborted: false }
     } finally {
       computeMeasuresController = null
@@ -143,31 +229,65 @@ async function sendFile (uploadedFile) {
   }
 
 function cancelComputeMeasures() {
-  if (computeMeasuresController) computeMeasuresController.abort()
+  if (computeMeasuresController) {
+    computeMeasuresController.abort()
+  }
 }
 
 async function deleteNetworkSession () {
   const complexNetworkStore = useComplexNetworkStore()
-  if (!complexNetworkStore.token) return
+
+  if (!complexNetworkStore.token) {
+    return
+  }
 
   try {
-    await fetch(`${API_BASE}/api/session`, {
+    await fetch('/api/session', {
       method: 'DELETE',
-      headers: { 'X-Network-token': complexNetworkStore.token },
+      headers: {
+        'X-Network-token': complexNetworkStore.token,
+      },
     })
-  } catch (err) {}
+  } catch (err) {
+    console.log(err)
+  }
 }
 
+// for basic visualization, only needed when doing the setup for Sigma
 async function getEntireNetworkPositions () {
+
   const complexNetworkStore = useComplexNetworkStore()
+  let error = ''
+
   try {
-      const response = await fetch(`${API_BASE}/api/tiny_network_viz`, {
+      const response = await fetch('/api/tiny_network_viz', {
       method: 'POST', 
-      headers: { "Content-Type": "application/json", "X-Network-token": complexNetworkStore.token },
+      headers: {
+        "Content-Type": "application/json", 
+        "X-Network-token": complexNetworkStore.token
+      },
     })
+
     const payload = await response.json().catch(() => ({}));
-    if (response.ok) return payload;
-  } catch (err) {}
+
+    if (response.status === 400) {
+      error = payload?.error || payload?.detail || 'request not valid (400).'
+      return error
+    }
+
+    if (!response.ok) {
+      error = payload?.error || payload?.detail || `server error (${response.status}).`
+      return error
+    }
+
+    const result = payload;
+    return result
+
+    } catch (err) {
+      error= 'network error, check your Internet connection and retry.'
+      console.log(err.message)
+    }
+
 }
 
 export {sendFile, generateRandomNetwork, computeMeasures, cancelComputeMeasures, deleteNetworkSession, getEntireNetworkPositions}

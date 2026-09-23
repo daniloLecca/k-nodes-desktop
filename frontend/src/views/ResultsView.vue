@@ -36,8 +36,16 @@
         return []
     })
 
+    const legacyCentralityMeasures = new Set(['sgcen', 'comm', 'stconv'])
+
+    function isLegacyComputation() {
+        return legacyCentralityMeasures.has(computationStore.computationData?.cenIndex)
+    }
+
+    const showLegacyDetails = computed(() => isLegacyComputation())
+
     // infer convergence 
-    if (computationStore.computationData.compMethod === 'lr') {
+        if (showLegacyDetails.value && computationStore.computationData.compMethod === 'lr') {
         if (vipNodes.value.length === computationStore.computationData.numNodes) {
             lowRankConvergence.value = "Strong convergence"
         } else if (vipNodes.value.length > computationStore.computationData.numNodes + 100) {
@@ -46,7 +54,7 @@
             lowRankConvergence.value = "Weak convergence"
             additionalNodes.value = vipNodes.value.length - computationStore.computationData.numNodes
         }
-    } else {
+        } else if (showLegacyDetails.value) {
         if (computationStore.computationResult.convergence_lowrank === 'no convergence') {
             lowRankConvergence.value = "No convergence"
         } else if (computationStore.computationResult.convergence_lowrank === 'weak convergence') {
@@ -59,6 +67,42 @@
 
     // improvement of labels from computation parameters labels
     function processComputationDataLabels (d) {
+        if (!legacyCentralityMeasures.has(d.cenIndex)) {
+            const labels = {
+                degree: 'Degree centrality',
+                eigenvector: 'Eigenvector centrality',
+                katz: 'Katz centrality',
+                pagerank: 'PageRank centrality',
+                betweenness: 'Betweenness centrality',
+                closeness: 'Closeness centrality',
+            }
+
+            const updatedD = {
+                'Centrality measure': labels[d.cenIndex] || d.cenIndex,
+                'Number of nodes seeked': d.numNodes,
+            }
+
+            if (d.cenIndex === 'katz') {
+                updatedD['Alpha for Katz centrality'] = d.alpha
+                updatedD['Beta for Katz centrality'] = d.beta
+                updatedD['Max number of iterations for Katz centrality'] = d.maxIter
+                updatedD['Tolerance for Katz centrality'] = d.tol
+            }
+
+            if (d.cenIndex === 'eigenvector') {
+                updatedD['Max number of iterations for eigenvector centrality'] = d.maxIter
+                updatedD['Tolerance for eigenvector centrality'] = d.tol
+            }
+
+            if (d.cenIndex === 'pagerank') {
+                updatedD['Alpha for PageRank'] = d.alpha
+                updatedD['Max number of iterations for PageRank'] = d.maxIter
+                updatedD['Tolerance for PageRank'] = d.tol
+            }
+
+            return updatedD
+        }
+
         let updatedD = {
             "Computation method": d.compMethod === 'gauss' ? 'Gauss quadrature' : (d.compMethod === 'hyb' ? 'Hybrid method' : 'Low rank approximation'), 
             "Centrality measure": d.cenIndex === 'comm' ? 'Communicability' : (d.cenIndex === 'sgcen' ? 'Subgraph centrality' : 'Starting convenience'), 
@@ -155,7 +199,7 @@
 
         doc.text("The VIP nodes have been identified successfully!", y, downShift())
 
-        if (computationStore.computationData.compMethod === 'hyb') {
+        if (showLegacyDetails.value && computationStore.computationData.compMethod === 'hyb') {
             doc.text(`Number of nodes sought via low rank approximation: ${computationStore.computationData.numNodesLR}`, y, downShift())
             doc.text(`Number of nodes identified via low rank approximation: ${vipLowrank.value.length}`, y, downShift())
         }
@@ -163,9 +207,9 @@
         doc.text(`Total number of VIP nodes identified: ${vipNodes.value.length}`, y, downShift())
         doc.text(`Elapsed time: ${computationStore.computationResult.elapsed_time}s`, y, downShift())
 
-        if (computationStore.computationData.compMethod !== 'gauss') {
+        if (showLegacyDetails.value && computationStore.computationData.compMethod !== 'gauss') {
             doc.text(`Number of used eigenpairs: ${computationStore.computationResult.used_eigenpairs}`, y, downShift())
-        } else {
+        } else if (showLegacyDetails.value) {
             doc.text(`Mean of matrix vector products: ${matrixVectorProducts.value.length > 0 ? (matrixVectorProducts.value.reduce((sum, num) => sum + num, 0)) / matrixVectorProducts.value.length : 0}`, y, downShift())
         }
 
@@ -202,6 +246,8 @@
         URL.revokeObjectURL(url)
     }
 
+    // the json file contains all of the computation data and results available (even from previous computations)
+    // same as "Computation results" section, only the useful information for the current computation are interesting
     function jsonResults() {
         const toOneBasedNodes = (nodes) => Array.isArray(nodes)
             ? nodes.map((node) => typeof node === 'number' ? node + 1 : node)
@@ -227,10 +273,7 @@
                 selfLoops: complexNetworkStore.selfLoops
             },
             computationData: computationStore.computationData,
-            computationResult: normalizedComputationResult,
-            vipNodes: toOneBasedNodes(vipNodes.value),
-            vipScores: vipScores.value,
-            vipLowrank: toOneBasedNodes(vipLowrank.value)
+            computationResult: normalizedComputationResult
         }
 
         saveTextFile(JSON.stringify(payload, null, 2), 'results.json', 'application/json;charset=utf-8')
@@ -283,19 +326,19 @@
 <template>
     <div class="container">
         <header>
-        <h2 v-if="computationStore.computationData.compMethod !== 'gauss'">
+            <h2 v-if="isLegacyComputation() && computationStore.computationData.compMethod !== 'gauss'">
             {{ lowRankConvergence }} test was satisfied for low rank
             <p v-if="lowRankConvergence === 'Weak convergence'">
                 {{ additionalNodes }} additional nodes have been added. <br>
             </p>
         </h2>
-        <h2 v-else>The VIP nodes have been identified successfully!</h2>
-        <h3 v-if="computationStore.computationData.compMethod === 'hyb'"> Number of nodes sought via low rank approximation: {{ computationStore.computationData.numNodesLR }}</h3>   
-        <h3 v-if="computationStore.computationData.compMethod === 'hyb'"> Number of nodes identified via low rank approximation: {{ vipLowrank.length }}</h3>   
+            <h2 v-else>The VIP nodes have been identified successfully!</h2>
+            <h3 v-if="isLegacyComputation() && computationStore.computationData.compMethod === 'hyb'"> Number of nodes sought via low rank approximation: {{ computationStore.computationData.numNodesLR }}</h3>   
+            <h3 v-if="isLegacyComputation() && computationStore.computationData.compMethod === 'hyb'"> Number of nodes identified via low rank approximation: {{ vipLowrank.length }}</h3>   
         <h3>Total number of VIP nodes identified: {{ vipNodes.length }}</h3>
         <h3>Elapsed time: {{ computationStore.computationResult.elapsed_time }}s</h3>
-        <h3 v-if="computationStore.computationData.compMethod !== 'gauss'">Number of eigenpairs used: {{ computationStore.computationResult.used_eigenpairs }}</h3>
-        <h3 v-if="computationStore.computationData.compMethod === 'gauss'">Mean of matrix vector products:
+            <h3 v-if="isLegacyComputation() && computationStore.computationData.compMethod !== 'gauss'">Number of eigenpairs used: {{ computationStore.computationResult.used_eigenpairs }}</h3>
+            <h3 v-if="isLegacyComputation() && computationStore.computationData.compMethod === 'gauss'">Mean of matrix vector products:
                {{ matrixVectorProducts.length > 0 ? (matrixVectorProducts.reduce((sum, num) => sum + num, 0)) / matrixVectorProducts.length : 0 }}
         </h3>
         <section>
@@ -316,7 +359,10 @@
             </div>
             <div v-if="exportOption === 'pdf'" class="export-img-cb">
                 <input type="checkbox" name="img-pdf" id="img-pdf" v-model="exportImgCB">
-                <label for="img-pdf">Include images</label>
+                <label for="img-pdf">
+                    Include images
+                    <span title="If the download takes too long, try unchecking this option"> &#x2139;&#xFE0F; </span>
+                 </label>
             </div>
             <button @click="exportResultsFile()">Download {{ exportOption.toUpperCase() }}</button>
         </section>
@@ -341,20 +387,20 @@
     <InfoSection
         class="info-section"
         :class="{ 'info-section--zoomed': zoomedSection === 'scatterplot' }"
-        :title="'Sparsity pattern of the adjacency matrix'"
+        :title="'Spyplot of the adjacency matrix'"
         :description="'Each blue dot represents an edge of the complex network. \n\n\n\n\nClick to zoom the entire section. '"
         :viz="'scatterplot'"
         :interaction-scale="zoomedSection === 'scatterplot' ? 2 : 1"
         @click="toggleSectionZoom('scatterplot')"
     ></InfoSection>
-    <template v-if="computationStore.computationData.compMethod !== 'gauss'">
+    <template v-if="isLegacyComputation() && computationStore.computationData.compMethod !== 'gauss'">
         <InfoSection
             class="info-section"
             :class="{ 'info-section--zoomed': zoomedSection === 'eigenvalues' }"
             :title="'Used eigenvalues'"
             :description="'Only the eigenvalues used in the computation are shown. For each iteration \
             an eigenvalue is used (x-axis) and corresponding value is plotted in the y-axis. \
-            \nHover on the plot to more detailed information. \n\n\n\nClick to zoom the entire section'"
+            \nHover on the plot to display more detailed informations. \n\n\n\nClick to zoom the entire section'"
             :viz="'eigenvalues'"
             :interaction-scale="zoomedSection === 'eigenvalues' ? 2 : 1"
             @click="toggleSectionZoom('eigenvalues')"
@@ -365,7 +411,7 @@
             :title="'History of low rank bounds'"
             :description="'All the bounds estimated throughout the computation. For each node, the lower bound (LB) \
             and upper bound (UB) estimate of the \'score\' throughout each iteration (x-axis) is plotted. \nIf a node is no longer \
-            eligible as a VIP node its bounds are no longer displayed. \n\nClick to zoom and hover to interact. '"
+            eligible as a VIP node its bounds are no longer displayed. \n\n\n\nClick to zoom and hover to interact. '"
             :viz="'boundsHistory'"
             :interaction-scale="zoomedSection === 'boundsHistory' ? 2 : 1"
             @click="toggleSectionZoom('boundsHistory')"

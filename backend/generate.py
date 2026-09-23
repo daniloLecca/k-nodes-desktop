@@ -1,4 +1,4 @@
-from networkx import barabasi_albert_graph, watts_strogatz_graph, to_scipy_sparse_array
+from networkx import barabasi_albert_graph, watts_strogatz_graph, erdos_renyi_graph, to_scipy_sparse_array
 from scipy.sparse import csc_matrix
 
 def generate_scale_free_complex_network(nnodes: int, k: int = 5) -> csc_matrix:
@@ -19,4 +19,15 @@ def generate_small_world_complex_network(nnodes: int, k: int = 5, probability: f
     G = watts_strogatz_graph(nnodes, k, probability)
     A = to_scipy_sparse_array(G, format="csc", dtype=float)
     
+    return csc_matrix(A)
+
+def generate_random_model_complex_network(nnodes: int, probability: float) -> csc_matrix:
+    """Generate a random network using Erdos-Renyi model.
+    
+    Returns a symmetric adjacency matrix (required for undirected graphs).
+    """
+
+    G = erdos_renyi_graph(nnodes, probability)
+    A = to_scipy_sparse_array(G, format="csc", dtype=float)
+
     return csc_matrix(A)

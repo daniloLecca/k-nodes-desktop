@@ -366,3 +366,23 @@ class HybridSubgraphCentrality(BaseModel):
 
 class HybridCommunicability(HybridSubgraphCentrality):
     i: int
+
+
+class CentralityIndex(BaseModel): 
+    nnodes: int | None = None
+
+
+class EigenvectorCentrality(CentralityIndex):
+    max_iter: int | None = None
+    tol: float | None = None
+
+class KatzCentrality(CentralityIndex):
+    alpha: float | None = None
+    beta: float | None = None
+    max_iter: int | None = None
+    tol: float | None = None
+
+class PageRankCentrality(CentralityIndex):
+    alpha: float | None = None
+    max_iter: int | None = None
+    tol: float | None = None

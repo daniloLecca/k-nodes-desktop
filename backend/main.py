@@ -5,6 +5,7 @@ import logging
 import argparse
 import uvicorn 
 import generate as gnt
+import centralities_nx as cnx
 from scipy import sparse
 from scipy.sparse import csc_matrix
 from scipy.sparse.linalg import eigsh
@@ -19,12 +20,14 @@ from fastapi.middleware.cors import CORSMiddleware
 from utils import get_clusters, ClusterRequest, ExpRequest, ResRequest, RandomComplexNetworkRequest
 from utils import LowRankSubgraphCentrality, LowRankCommunicability, GaussSubgraphCentrality, GaussCommunicability
 from utils import HybridSubgraphCentrality, HybridCommunicability
+from utils import CentralityIndex, EigenvectorCentrality, KatzCentrality, PageRankCentrality
 from utils import extract_complex_network_from_file
 from gauss import gauss_exp, gauss_res, sgcengauss, commgauss, stconvgauss
 from lowrank import sgcenlr, commlr, stconvlr
 from hybrid import sgcenhyb, commhyb, stconvhyb
 from layout import entire_network_layout
 from primme import PrimmeError
+from networkx.exception import PowerIterationFailedConvergence
 from secrets import token_urlsafe
 from time import perf_counter
 
@@ -189,8 +192,22 @@ def get_gauss_res(request: ResRequest, session: dict = Depends(get_network_sessi
 def get_random_complex_network(request: RandomComplexNetworkRequest): 
     if request.model == "scale_free": 
         network = gnt.generate_scale_free_complex_network(request.nnodes, request.k)
+    elif request.model == "random_model":
+        network = gnt.generate_random_model_complex_network(request.nnodes, request.p)
     else:
         network = gnt.generate_small_world_complex_network(request.nnodes, request.k, request.p)
+
+    # generated network might have zero edges (very low p). reject early with clear error.
+    # ensure matrix is CSC and has non-zero entries
+    if sparse.issparse(network):
+        network = network.tocsc()
+        network.setdiag(0)
+        network.eliminate_zeros()
+    else:
+        return JSONResponse(status_code=500, content={"error": "generated network is not a sparse matrix"})
+
+    if network.nnz == 0:
+        return JSONResponse(status_code=400, content={"error": "generated network has no edges, try increasing connection probability."})
 
     leig = eigsh(network, k=1, which='LA', return_eigenvectors=False)[0]
     clusters = {}
@@ -494,6 +511,178 @@ async def get_stconvhyb(request: HybridSubgraphCentrality, session: dict = Depen
         "used_eigenpairs": int(realN_lr),
         "candidates_history": serialize_candidates_history(S_history_lr)
     }
+
+@app.post("/api/degreecen")
+async def get_degree_centrality(request: CentralityIndex, session: dict = Depends(get_network_session)):
+    network = session["network"]
+
+    if network is None:
+        return JSONResponse(
+            status_code=400, 
+            content={"error": "session expired or not existing, try uploading a file or generating a random network."}
+        )
+
+    try:
+        t0 = perf_counter()
+        vip_nodes, vip_centralities = cnx.compute_degree_centrality(network, request.nnodes or 1)
+    except ValueError as e:
+        return JSONResponse(
+            status_code=400, 
+            content={"error": str(e)}
+        )
+
+    return {
+        "vip_nodes": vip_nodes.tolist(), 
+        "vip_scores": vip_centralities.tolist(), 
+        "elapsed_time": perf_counter() - t0
+    }
+    
+@app.post("/api/eigenvectorcen")
+async def get_eigenvector_centrality(request: EigenvectorCentrality, session: dict = Depends(get_network_session)):
+    network = session["network"]
+
+    if network is None:
+        return JSONResponse(
+            status_code=400, 
+            content={"error": "session expired or not existing, try uploading a file or generating a random network."}
+        )
+
+    try:
+        t0 = perf_counter()
+        vip_nodes, vip_centralities = cnx.compute_eigenvector_centrality(network, request.nnodes or 1, request.max_iter or 1000, request.tol or 1e-6)
+    except PowerIterationFailedConvergence:
+        return JSONResponse(
+            status_code=400,
+            content={"error": "maximum number of iterations reached while computing eigenvector centrality."}
+        )
+    except ValueError as e:
+        return JSONResponse(
+            status_code=400, 
+            content={"error": str(e)}
+        )
+
+    return {
+        "vip_nodes": vip_nodes.tolist(), 
+        "vip_scores": vip_centralities.tolist(), 
+        "elapsed_time": perf_counter() - t0
+    }
+
+
+@app.post("/api/katzcen")
+async def get_katz_centrality(request: KatzCentrality, session: dict = Depends(get_network_session)):
+    network = session["network"]
+    leig = session["leig"]
+
+    if network is None:
+        return JSONResponse(
+            status_code=400, 
+            content={"error": "session expired or not existing, try uploading a file or generating a random network."}
+        )
+
+    try:
+        t0 = perf_counter()
+        vip_nodes, vip_centralities = cnx.compute_katz_centrality(network, request.nnodes or 1, request.alpha or (1/leig - 0.001), request.beta or 1, request.max_iter or 1000, request.tol or 1e-6)
+    except PowerIterationFailedConvergence:
+        return JSONResponse(
+            status_code=400,
+            content={"error": "maximum number of iterations reached while computing Katz centrality."}
+        )
+    except ValueError as e:
+        return JSONResponse(
+            status_code=400, 
+            content={"error": str(e)}
+        )
+
+    return {
+        "vip_nodes": vip_nodes.tolist(), 
+        "vip_scores": vip_centralities.tolist(), 
+        "elapsed_time": perf_counter() - t0
+    }
+
+
+@app.post("/api/pagerankcen")
+async def get_pagerank_centrality(request: PageRankCentrality, session: dict = Depends(get_network_session)):
+    network = session["network"]
+
+    if network is None:
+        return JSONResponse(
+            status_code=400, 
+            content={"error": "session expired or not existing, try uploading a file or generating a random network."}
+        )
+
+    try:
+        t0 = perf_counter()
+        default_alpha_pagerank = 0.85
+        vip_nodes, vip_centralities = cnx.compute_pagerank(network, request.nnodes or 1, request.alpha or default_alpha_pagerank, request.max_iter or 1000, request.tol or 1e-6)
+    except PowerIterationFailedConvergence:
+        return JSONResponse(
+            status_code=400,
+            content={"error": "maximum number of iterations reached while computing PageRank centrality."}
+        )
+    except ValueError as e:
+        return JSONResponse(
+            status_code=400, 
+            content={"error": str(e)}
+        )
+
+    return {
+        "vip_nodes": vip_nodes.tolist(), 
+        "vip_scores": vip_centralities.tolist(), 
+        "elapsed_time": perf_counter() - t0
+    }
+
+
+@app.post("/api/betweennesscen")
+async def get_betweenness_centrality(request: CentralityIndex, session: dict = Depends(get_network_session)):
+    network = session["network"]
+
+    if network is None:
+        return JSONResponse(
+            status_code=400, 
+            content={"error": "session expired or not existing, try uploading a file or generating a random network."}
+        )
+
+    try:
+        t0 = perf_counter()
+        vip_nodes, vip_centralities = cnx.compute_betweenness_centrality(network, request.nnodes or 1)
+    except ValueError as e:
+        return JSONResponse(
+            status_code=400, 
+            content={"error": str(e)}
+        )
+
+    return {
+        "vip_nodes": vip_nodes.tolist(), 
+        "vip_scores": vip_centralities.tolist(), 
+        "elapsed_time": perf_counter() - t0
+    }
+
+
+@app.post("/api/closenesscen")
+async def get_closeness_centrality(request: CentralityIndex, session: dict = Depends(get_network_session)):
+    network = session["network"]
+
+    if network is None:
+        return JSONResponse(
+            status_code=400, 
+            content={"error": "session expired or not existing, try uploading a file or generating a random network."}
+        )
+
+    try:
+        t0 = perf_counter()
+        vip_nodes, vip_centralities = cnx.compute_closeness_centrality(network, request.nnodes or 1)
+    except ValueError as e:
+        return JSONResponse(
+            status_code=400, 
+            content={"error": str(e)}
+        )
+
+    return {
+        "vip_nodes": vip_nodes.tolist(), 
+        "vip_scores": vip_centralities.tolist(), 
+        "elapsed_time": perf_counter() - t0
+    }
+
 
 @app.post("/api/tiny_network_viz")
 async def get_positions_tiny_network(session: dict = Depends(get_network_session)):

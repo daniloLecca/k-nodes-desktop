@@ -42,7 +42,16 @@ def res(T: np.ndarray, alpha: float) -> float:
 
 def opolyval(alfa: np.ndarray, beta: np.ndarray, beta0: float, x: float) -> Tuple[float, float]:
     """
-    Computes orthonormal polynomials via recurrence.
+    Computes orthonormal polynomials via recurrence
+
+    Args:
+        alfa (np.ndarray): _description_
+        beta (np.ndarray): _description_
+        beta0 (float): _description_
+        x (float): _description_
+
+    Returns:
+        Tuple[float, float]: _description_
     """
     p1 = 1.0 / beta0
     p = (x - alfa[0]) / beta[0]
