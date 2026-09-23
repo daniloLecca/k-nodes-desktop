@@ -297,23 +297,31 @@ class ResRequest(ExpRequest):
 
 class RandomComplexNetworkRequest(BaseModel):
     nnodes: int
-    model: Literal["small_world", "scale_free"]
-    k: int
+    model: Literal["small_world", "scale_free", "random_model"]
+    k: int | None = None
     p: float | None = None
 
     @model_validator(mode="after")
     def check_p_consistency(self):
         if self.model == "small_world":
+            if self.k is None:
+                raise ValueError("'k' is required for 'watts_strogatz' model")
             if self.p is None:
-                raise ValueError(f"'p' is required for 'watts_strogatz' model")
+                raise ValueError("'p' is required for 'watts_strogatz' model")
             if not (0 <= self.p <= 1):
                 raise ValueError("'p' must be between 0 and 1")
+            if self.nnodes < 3:
+                raise ValueError("'nnodes' must be at least 3 for 'watts_strogatz'")
+            if self.k < 2:
+                raise ValueError("'k' must be at least 2 for 'watts_strogatz'")
+            if self.k >= self.nnodes:
+                raise ValueError("'k' must be smaller than 'nnodes' for 'watts_strogatz'")
 
         if self.model == "scale_free":
+            if self.k is None:
+                raise ValueError("'k' is required for 'barabasi_albert' model")
             if self.p is not None:
                 raise ValueError("'p' must not be provided for 'barabasi_albert'")
-
-        if self.model == "scale_free":
             if self.nnodes < 2:
                 raise ValueError("'nnodes' must be at least 2 for 'barabasi_albert'")
             if self.k < 1:
@@ -321,13 +329,15 @@ class RandomComplexNetworkRequest(BaseModel):
             if self.k >= self.nnodes:
                 raise ValueError("'k' must be smaller than 'nnodes' for 'barabasi_albert'")
 
-        if self.model == "small_world":
-            if self.nnodes < 3:
-                raise ValueError("'nnodes' must be at least 3 for 'watts_strogatz'")
-            if self.k < 2:
-                raise ValueError("'k' must be at least 2 for 'watts_strogatz'")
-            if self.k >= self.nnodes:
-                raise ValueError("'k' must be smaller than 'nnodes' for 'watts_strogatz'")
+        if self.model == "random_model":
+            if self.k is not None:
+                raise ValueError("'k' must not be provided for 'erdos_renyi'")
+            if self.p is None:
+                raise ValueError("'p' is required for 'erdos_renyi' model")
+            if not (0 < self.p <= 1):
+                raise ValueError("'p' must be greater than 0 and at most 1 for 'erdos_renyi'")
+            if self.nnodes < 2:
+                raise ValueError("'nnodes' must be at least 2 for 'erdos_renyi'")
 
         return self
     
@@ -366,7 +376,6 @@ class HybridSubgraphCentrality(BaseModel):
 
 class HybridCommunicability(HybridSubgraphCentrality):
     i: int
-
 
 class CentralityIndex(BaseModel): 
     nnodes: int | None = None

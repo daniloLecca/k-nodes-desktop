@@ -2,6 +2,8 @@ import { useComplexNetworkStore } from "@/stores/complexNetwork";
 import { useComputationStore } from "@/stores/computationStore";
 import router from "@/router";
 
+const API_BASE = 'http://127.0.0.1:8123'
+
 let computeMeasuresController = null
 
 const legacyCentralityMeasures = new Set(['sgcen', 'comm', 'stconv'])
@@ -9,18 +11,18 @@ const legacyCentralityMeasures = new Set(['sgcen', 'comm', 'stconv'])
 function getComputeRoute(computationData) {
   if (!legacyCentralityMeasures.has(computationData.cenIndex)) {
     const routeMap = {
-      degree: '/api/degreecen',
-      eigenvector: '/api/eigenvectorcen',
-      katz: '/api/katzcen',
-      pagerank: '/api/pagerankcen',
-      betweenness: '/api/betweennesscen',
-      closeness: '/api/closenesscen',
+      degree: `${API_BASE}/api/degreecen`,
+      eigenvector: `${API_BASE}/api/eigenvectorcen`,
+      katz: `${API_BASE}/api/katzcen`,
+      pagerank: `${API_BASE}/api/pagerankcen`,
+      betweenness: `${API_BASE}/api/betweennesscen`,
+      closeness: `${API_BASE}/api/closenesscen`,
     }
 
     return routeMap[computationData.cenIndex]
   }
 
-  return `/api/${computationData.cenIndex}${computationData.compMethod}`
+  return `${API_BASE}/api/${computationData.cenIndex}${computationData.compMethod}`
 }
 
 function buildRequestBody(computationData) {
@@ -73,7 +75,7 @@ async function sendFile (uploadedFile) {
     formData.append('file', uploadedFile);
 
     try {
-      const response = await fetch('/api/', {
+      const response = await fetch(`${API_BASE}/api/`, {
       method: 'POST', 
       body: formData
     })
@@ -125,7 +127,7 @@ async function sendFile (uploadedFile) {
     console.log('Random network params:', formData)
 
     try {
-      const response = await fetch('/api/random', {
+      const response = await fetch(`${API_BASE}/api/random`, {
       method: 'POST', 
       headers: {
         "Content-Type": "application/json"
@@ -242,7 +244,7 @@ async function deleteNetworkSession () {
   }
 
   try {
-    await fetch('/api/session', {
+    await fetch(`${API_BASE}/api/session`, {
       method: 'DELETE',
       headers: {
         'X-Network-token': complexNetworkStore.token,
@@ -260,7 +262,7 @@ async function getEntireNetworkPositions () {
   let error = ''
 
   try {
-      const response = await fetch('/api/tiny_network_viz', {
+      const response = await fetch(`${API_BASE}/api/tiny_network_viz`, {
       method: 'POST', 
       headers: {
         "Content-Type": "application/json", 

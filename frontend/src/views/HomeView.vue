@@ -25,15 +25,15 @@
   theme.value = savedTheme || (prefersDark ? 'dark' : 'light')
 
   // descriptions for info sections
-  const infoSectionsDescriptions = [
+  const infoSectionsDescriptions = computed(() => [
     {
       title: "Why VIPNODES?",
-      description: "VIPNODES identifies the most important nodes in a complex network, referred to as \'VIP\' nodes. \n\n \
+      description: "VIPNODES identifies the most important nodes in a complex network, referred to as 'VIP' nodes. \n\n \
       VIPNODES makes the tool available online, originally developed in MATLAB. Furthermore, this new version introduces \
       various performance optimizations and extends the tool with new features such as network visualization, different export \
       formats and an enhanced statistical visualization. \n\n \
       A desktop version for Windows, Linux and MacOS is available as well. Click the corresponding button for the download. ", 
-      imgURL: (new URL('/public/vipnodes-logo.png', import.meta.url).href)
+      imgURL: "./vipnodes-logo.png"
     },
     {
       title: "How do I upload a complex network with VIPNODES?",
@@ -47,7 +47,7 @@
         2. Small world network: using the Watts-Strogatz model, generate a lattice with the initial nodes and edges and rewire \
         edges with a certain probability. \n \
         3. Random network: using the Erdős-Rényi model, connect each pair of nodes independently with a probability p.", 
-      imgURL: (new URL('../assets/imgs/random-network-screenshot-' + theme.value + ".png", import.meta.url).href)
+      imgURL: `./imgs/random-network-screenshot-${theme.value}.png`
     },
     {
       title: "What can I do with VIPNODES?",
@@ -57,7 +57,7 @@
        \n\nIn addition, VIPNODES offers a wide choice of options and parameters in order to maximize the results \
       and ensure numerical precision. \n\nUnlike other tools, VIPNODES lets you explore the complex network, with a robust overview of \
       the entire network and lets you interact with its structure. For example, by dragging the nodes or visualizing the VIP nodes.", 
-      imgURL: (new URL('../assets/imgs/vip-nodes-visualization-' + theme.value + ".png", import.meta.url).href)
+      imgURL: `./imgs/vip-nodes-visualization-${theme.value}.png`
     },
     {
       title: "Which computation methods does VIPNODES implement?",
@@ -67,9 +67,9 @@
       unique two-stage approach referred to as the 'hybrid method', which first performs a low rank approximation in order to quickly determine a larger set of \
       VIP nodes and eventually refines the computation with Gauss type quadrature rules on the few remaining nodes.\n\nThe hybrid method combines \
       efficiency and precision and is usually considered a more convenient approach for most applications. ", 
-      imgURL: (new URL('../assets/imgs/results-screenshot-' + theme.value + ".png", import.meta.url).href)
+      imgURL: `./imgs/results-screenshot-${theme.value}.png`
     },
-  ]
+  ]);
 
   // FILE INPUT HANDLING
   const fileInput = ref(null)
