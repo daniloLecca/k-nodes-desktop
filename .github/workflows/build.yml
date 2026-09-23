@@ -37,7 +37,7 @@ jobs:
           pip install "numpy<2.0.0,>=1.24.0"
           pip install -r requirements.txt
           pip install pyinstaller
-          pyinstaller --name backend-api --onedir --clean `
+          pyinstaller --name backend-api --onefile --clean `
             --collect-all numpy `
             --collect-all networkx `
             --collect-all sknetwork `
@@ -76,7 +76,7 @@ jobs:
           pip install "numpy<2.0.0,>=1.24.0"
           pip install -r requirements.txt
           pip install pyinstaller
-          pyinstaller --name backend-api --onedir --clean \
+          pyinstaller --name backend-api --onefile --clean \
             --collect-all numpy \
             --collect-all networkx \
             --collect-all sknetwork \
