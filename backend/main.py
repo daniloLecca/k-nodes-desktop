@@ -9,6 +9,7 @@ import centralities_nx as cnx
 from scipy import sparse
 from scipy.sparse import csc_matrix
 from scipy.sparse.linalg import eigsh
+from spectral_deflation import SOLVER_ERRORS
 from fastapi import FastAPI, File, UploadFile, Request, Header, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 import matplotlib.pyplot as plt
@@ -26,7 +27,7 @@ from gauss import gauss_exp, gauss_res, sgcengauss, commgauss, stconvgauss
 from lowrank import sgcenlr, commlr, stconvlr
 from hybrid import sgcenhyb, commhyb, stconvhyb
 from layout import entire_network_layout
-from primme import PrimmeError
+
 from networkx.exception import PowerIterationFailedConvergence
 from secrets import token_urlsafe
 from time import perf_counter
@@ -262,7 +263,7 @@ async def get_sgclr(request: LowRankSubgraphCentrality, session: dict = Depends(
     try: 
         t0 = perf_counter()
         vip_nodes, vip_sgc, num_eigs, candidates_history = sgcenlr(network, request.fun_name or "exp", request.nnodes or 1, options)
-    except PrimmeError: 
+    except SOLVER_ERRORS: 
         return JSONResponse(status_code=400, content={"error": "max iterations reached"})
     return {
         "vip_nodes": vip_nodes.tolist(),
@@ -292,7 +293,7 @@ async def get_commlr(request: LowRankCommunicability, session: dict = Depends(ge
     try: 
         t0 = perf_counter()
         vip_nodes, vip_comm, num_eigs, candidates_history = commlr(network, request.i, request.fun_name or "exp", request.nnodes or 1, options)
-    except PrimmeError: 
+    except SOLVER_ERRORS: 
         return JSONResponse(status_code=400, content={"error": "max iterations reached"})
     return {
         "vip_nodes": vip_nodes.tolist(),
@@ -322,7 +323,7 @@ async def get_stconvlr(request: LowRankSubgraphCentrality, session: dict = Depen
     try: 
         t0 = perf_counter()
         vip_nodes, vip_stconv, num_eigs, candidates_history = stconvlr(network, request.fun_name or "exp", request.nnodes or 1, options)
-    except PrimmeError: 
+    except SOLVER_ERRORS: 
         return JSONResponse(status_code=400, content={"error": "max iterations reached"})
     return {
         "vip_nodes": vip_nodes.tolist(),
@@ -419,7 +420,7 @@ async def get_sgchyb(request: HybridSubgraphCentrality, session: dict = Depends(
     try: 
         t0 = perf_counter()
         vip_nodes, vip_sgc, info, iters, allsgc, vip_lr, vipsgc_lr, realN_lr, S_history_lr, convergence = sgcenhyb(network, request.fun_name or "exp", request.nnodes or 1, options)
-    except PrimmeError as e: 
+    except SOLVER_ERRORS as e: 
         return JSONResponse(status_code=400, content={"error": "max iterations reached"})
     return {
         "vip_nodes": vip_nodes.tolist(),
@@ -496,7 +497,7 @@ async def get_stconvhyb(request: HybridSubgraphCentrality, session: dict = Depen
     try: 
         t0 = perf_counter()
         vip_nodes, vip_stconv, info, iters, allstconv, vip_lr, vipstconv_lr, realN_lr, S_history_lr, convergence = stconvhyb(network, request.fun_name or "exp", request.nnodes or 1, options)
-    except PrimmeError: 
+    except SOLVER_ERRORS: 
         return JSONResponse(status_code=400, content={"error": "max iterations reached"})
     return {
         "vip_nodes": vip_nodes.tolist(),

@@ -15,21 +15,10 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # --- SETUP PYTHON STANDARD FOR LINUX ---
-      - name: Setup Python (Linux)
-        if: matrix.os == 'ubuntu-latest'
+      - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.10'
-
-      # --- SETUP MINICONDA FOR WINDOWS (provides precompiled primme) ---
-      - name: Setup Conda (Windows)
-        if: matrix.os == 'windows-latest'
-        uses: conda-incubator/setup-miniconda@v3
-        with:
-          python-version: '3.10'
-          activate-environment: test-env
-          channels: conda-forge,defaults
 
       # --- SETUP SYSTEM DEPENDENCIES (LINUX) ---
       - name: Install System Dependencies (Linux)
@@ -41,28 +30,23 @@ jobs:
       # --- BUILD BACKEND (WINDOWS) ---
       - name: Build Backend (Windows)
         if: matrix.os == 'windows-latest'
-        shell: pwsh -l {0}
+        shell: pwsh
         run: |
           cd backend
           if (Test-Path dist) { Remove-Item -Recurse -Force dist }
           if (Test-Path build) { Remove-Item -Recurse -Force build }
 
-          # 1. Installa primme e lo stack scientifico precompilato da conda-forge (Zero errori di compilazione C)
-          conda install -y -c conda-forge primme "numpy<2.0.0,>=1.24.0" scipy networkx
-
-          # 2. Installa le restanti dipendenze con pip
-          pip install --upgrade pip
+          python -m pip install --upgrade pip setuptools wheel
+          pip install "numpy<2.0.0,>=1.24.0"
           pip install -r requirements.txt
           pip install pyinstaller
 
-          # 3. Compila con PyInstaller usando il file spec
           pyinstaller --clean backend-api.spec
 
-          # 4. Verifica dimensione
           $exe = Get-Item dist\backend-api.exe
           Write-Host "Dimensione generata: $($exe.Length) bytes"
           if ($exe.Length -lt 80000000) {
-            Write-Error "ERRORE: L'eseguibile e troppo piccolo ($($exe.Length) bytes), mancano librerie!"
+            Write-Error "ERRORE: L'eseguibile e troppo piccolo ($($exe.Length) bytes), mancano pacchetti!"
             exit 1
           }
 

@@ -1,4 +1,5 @@
 # -*- mode: python ; coding: utf-8 -*-
+import sys
 from PyInstaller.utils.hooks import collect_all, collect_submodules
 
 datas = []
@@ -28,13 +29,15 @@ packages = [
     'sknetwork',
     'scipy',
     'fa2',
-    'primme',
     'uvicorn',
     'anyio',
     'starlette',
     'fastapi',
     'h11',
 ]
+
+if sys.platform != 'win32':
+    packages.append('primme')
 
 for pkg in packages:
     try:
@@ -43,7 +46,7 @@ for pkg in packages:
         binaries += b
         hiddenimports += h
     except Exception as e:
-        print(f"Warning collecting {pkg}: {e}")
+        pass
 
 hiddenimports += collect_submodules('uvicorn')
 

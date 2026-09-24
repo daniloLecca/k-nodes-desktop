@@ -1,10 +1,11 @@
 import numpy as np
 from scipy.sparse import csc_matrix
 from scipy.sparse.csgraph import connected_components
-import primme
 from typing import Optional, Dict, Any, Literal, Tuple
 import warnings
 import logging
+
+from spectral_deflation import eigsh_batch as _eigsh_batch, SOLVER_ERRORS
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
@@ -17,7 +18,7 @@ def sgcenlr(A: csc_matrix,
     Determine the VIP nodes of an undirected, unweighted complex network depending on the subgraph-centrality of each node,
     via low-rank approximation of the adjacency matrix.
     
-    Paramaters:
+    Parameters:
     ----------
     A : csc_matrix
         adjacency matrix (column sparse and symmetric)
@@ -60,7 +61,7 @@ def sgcenlr(A: csc_matrix,
     
     # PRIMME options
     k = opts.get('lr_primme_batch_size', 20) # batch size
-    tol = opts.get('lr_primme_tol', 1e-3) # tolerance for PRIMME
+    tol = opts.get('lr_primme_tol', 1e-6) # tolerance for PRIMME
     lr_primme_max_iterations = opts.get('lr_primme_max_iterations', 1000) # max number of iterations for PRIMME
     lr_return_S = opts.get('lr_return_S', True) # return the history of candidate nodes, default: True
 
@@ -71,7 +72,7 @@ def sgcenlr(A: csc_matrix,
     
     # compute the first batch (default batch_size = k = 20)
     logger.info(f"Computing first eigenbatch with k={min(k, n)}...")
-    evals, evecs = primme.eigsh(A, k=min(k, n), which='LA', tol=tol, maxiter=lr_primme_max_iterations)
+    evals, evecs = _eigsh_batch(A, k=min(k, n), which='LA', tol=tol, maxiter=lr_primme_max_iterations)
     logger.info(f"First eigenbatch computed successfully")
     
     # descending ordering
@@ -123,13 +124,12 @@ def sgcenlr(A: csc_matrix,
                 k_new = min(k, n - VA.shape[1]) # minimum between standard dimension of eigenbatch (k in options)
                 # and remaining space in memory (eigenvectors database)
                 try:
-                    evals, evecs = primme.eigsh(A, k=k_new, which='LA', lock=VA, tol=tol, maxiter=lr_primme_max_iterations) # new batch
+                    evals, evecs = _eigsh_batch(A, k=k_new, which='LA', lock=VA, tol=tol, maxiter=lr_primme_max_iterations) # new batch
                 
                 except ValueError as e: 
-                    logger.info(str(e))
-                    warnings.warn(f"tolerance = {tol}, try reducing tolerance for eigenvalue computation")
+                    warnings.warn(str(e))
                     break
-                except primme.PrimmeError as e:
+                except SOLVER_ERRORS as e:
                     warnings.warn(f"PRIMME couldn't converge in case 1, switching to case 2: {e}")
                     break
                 
@@ -151,8 +151,8 @@ def sgcenlr(A: csc_matrix,
                 sigma = lam[-1] # sigma is the smallest eigenvalue computed until now
                 
                 try:
-                    evals, evecs = primme.eigsh(A, k=k, sigma=sigma, which='LM', tol=tol, maxiter=lr_primme_max_iterations)
-                except primme.PrimmeError as e:
+                    evals, evecs = _eigsh_batch(A, k=k, sigma=sigma, which='LM', tol=tol, maxiter=lr_primme_max_iterations)
+                except SOLVER_ERRORS as e:
                     warnings.warn(f"PRIMME couldn't converge to restart (case 2): {e}")
                     break
                 
@@ -180,7 +180,7 @@ def sgcenlr(A: csc_matrix,
         F += f_lam * v_sq # subgraph centrality of current node
         
         L = F.copy() # make a copy of the subraph centralities
-        U = L + f_lam * (1.0 - vsum) # estimate of the upper bound
+        U = L + f_lam * np.maximum(0.0, 1.0 - vsum) # estimate of the upper bound with protection against small orthogonalization loss (in case deflation is applied)
         
         # descending order of the lower bounds 
         indx = np.argsort(L)[::-1]
@@ -312,7 +312,7 @@ def commlr(A: csc_matrix,
     
     # PRIMME options
     k = opts.get('lr_primme_batch_size', 20) 
-    tol = opts.get('lr_primme_tol', 1e-3) 
+    tol = opts.get('lr_primme_tol', 1e-6) 
     lr_primme_max_iterations = opts.get('lr_primme_max_iterations', 1000) 
     lr_return_S = opts.get('lr_return_S', True) 
 
@@ -322,7 +322,7 @@ def commlr(A: csc_matrix,
     
     # compute the first batch using A_sub
     logger.info(f"Computing first eigenbatch with k={min(k, n_sub)}...")
-    evals, evecs = primme.eigsh(A_sub, k=min(k, n_sub), which='LA', tol=tol, maxiter=lr_primme_max_iterations)
+    evals, evecs = _eigsh_batch(A_sub, k=min(k, n_sub), which='LA', tol=tol, maxiter=lr_primme_max_iterations)
     logger.info("First eigenbatch computed successfully")
     
     # descending ordering
@@ -369,11 +369,11 @@ def commlr(A: csc_matrix,
                 
                 k_new = min(k, n_sub - VA.shape[1]) 
                 try:
-                    evals, evecs = primme.eigsh(A_sub, k=k_new, which='LA', lock=VA, tol=tol, maxiter=lr_primme_max_iterations) 
+                    evals, evecs = _eigsh_batch(A_sub, k=k_new, which='LA', lock=VA, tol=tol, maxiter=lr_primme_max_iterations) 
                 except ValueError as e: 
-                    warnings.warn(f"tolerance = {tol}, try reducing tolerance for eigenvalue computation")
+                    warnings.warn(str(e))
                     break
-                except primme.PrimmeError as e:
+                except SOLVER_ERRORS as e:
                     warnings.warn(f"PRIMME couldn't converge in case 1, switching to case 2: {e}")
                     break
                 
@@ -389,8 +389,8 @@ def commlr(A: csc_matrix,
             elif restype == 2:
                 sigma = lam[-1] 
                 try:
-                    evals, evecs = primme.eigsh(A_sub, k=k, sigma=sigma, which='LM', tol=tol, maxiter=lr_primme_max_iterations)
-                except primme.PrimmeError as e:
+                    evals, evecs = _eigsh_batch(A_sub, k=k, sigma=sigma, which='LM', tol=tol, maxiter=lr_primme_max_iterations)
+                except SOLVER_ERRORS as e:
                     warnings.warn(f"PRIMME couldn't converge to restart in case 2: {e}")
                     break
                 
@@ -415,7 +415,7 @@ def commlr(A: csc_matrix,
         contr = f_lam * V[:, N][local_i] * V[:, N]
         F += contr 
         
-        G = f_lam * np.sqrt(1 - u_tilde_k) * np.sqrt(1 - w_tilde_k)
+        G = f_lam * np.sqrt(np.maximum(0.0, 1 - u_tilde_k)) * np.sqrt(np.maximum(0.0, 1 - w_tilde_k)) # estimate of the upper bound with protection against small orthogonalization loss (in case deflation is applied)
         L = F - G
         U = F + G
         
@@ -524,7 +524,7 @@ def stconvlr(A: csc_matrix,
     
     # PRIMME options
     k = opts.get('lr_primme_batch_size', 20) # batch size
-    tol = opts.get('lr_primme_tol', 1e-3) # tolerance for PRIMME
+    tol = opts.get('lr_primme_tol', 1e-6) # tolerance for PRIMME
     lr_primme_max_iterations = opts.get('lr_primme_max_iterations', 1000) # max number of iterations for PRIMME
     lr_return_S = opts.get('lr_return_S', True) # return the history of candidate nodes, default: True
 
@@ -535,7 +535,7 @@ def stconvlr(A: csc_matrix,
     
     # compute the first batch (default batch_size = k = 20)
     logger.info(f"Computing first eigenbatch with k={min(k, n)}...")
-    evals, evecs = primme.eigsh(A, k=min(k, n), which='LA', tol=tol, maxiter=lr_primme_max_iterations)
+    evals, evecs = _eigsh_batch(A, k=min(k, n), which='LA', tol=tol, maxiter=lr_primme_max_iterations)
     logger.info(f"First eigenbatch computed successfully")
     
     # descending ordering
@@ -585,12 +585,12 @@ def stconvlr(A: csc_matrix,
                 k_new = min(k, n - VA.shape[1]) # minimum between standard dimension of eigenbatch (k in options)
                 # and remaining space in memory (eigenvectors database)
                 try:
-                    evals, evecs = primme.eigsh(A, k=k_new, which='LA', lock=VA, tol=tol, maxiter=lr_primme_max_iterations) # new batch
+                    evals, evecs = _eigsh_batch(A, k=k_new, which='LA', lock=VA, tol=tol, maxiter=lr_primme_max_iterations) # new batch
                     
                 except ValueError as e: 
-                    warnings.warn(f"tolerance = {tol}, try reducing tolerance for eigenvalue computation")
+                    warnings.warn(str(e))
                     break
-                except primme.PrimmeError as e:
+                except SOLVER_ERRORS as e:
                     warnings.warn(f"PRIMME couldn't converge in case 1, switching to case 2: {e}")
                     break
                 
@@ -612,8 +612,8 @@ def stconvlr(A: csc_matrix,
                 sigma = lam[-1] # sigma is the smallest eigenvalue computed until now
                 
                 try:
-                    evals, evecs = primme.eigsh(A, k=k, sigma=sigma, which='LM', tol=tol, maxiter=lr_primme_max_iterations)
-                except primme.PrimmeError as e:
+                    evals, evecs = _eigsh_batch(A, k=k, sigma=sigma, which='LM', tol=tol, maxiter=lr_primme_max_iterations)
+                except SOLVER_ERRORS as e:
                     warnings.warn(f"PRIMME couldn't converge to restart (case 2): {e}")
                     break
                 
@@ -643,7 +643,7 @@ def stconvlr(A: csc_matrix,
         w_tilde_k += (sv ** 2)
         contr = f_lam * v * sv
         F += contr
-        G = f_lam * np.sqrt(1 - u_tilde_k) * np.sqrt(n - w_tilde_k)
+        G = f_lam * np.sqrt(np.maximum(0.0, 1 - u_tilde_k)) * np.sqrt(np.maximum(0.0, n - w_tilde_k)) # estimate of the upper bound with protection against small orthogonalization loss (in case deflation is applied)
         
         L = F - G
         U = F + G
