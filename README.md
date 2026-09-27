@@ -1,72 +1,236 @@
 
 # VIPNODES
 
-![Home Page](./frontend/src/assets/imgs/home-page-screenshot.png)
+![GitHub Release](https://img.shields.io/github/v/release/daniloLecca/vipnodes-desktop) ![GitHub Release Date](https://img.shields.io/github/release-date/daniloLecca/vipnodes-desktop?display_date=published_at)
 
-> An online tool for seeking the most important nodes of a network through the computation of centrality measures in undirected, unweighted complex networks.
+An online and desktop tool for complex network analysis via centrality measures computation.
+
+Some of the key functionalities offered by VIPNODES:
+
+* Visualization of the complex network with interactive features, especially useful for topological analysis.
+* Upload a network or generate a synthetic one with several models and parameters.
+* Compute centrality measures with different algorithms and options.
+* Explore, interact and download the results with specific functionalities.
+
+## Table of contents
+
+* [Getting started] (#getting-started)
+  * [Web] (#web-version)
+  * [Desktop] (#desktop-version)
+    * [Windows] (#windows)
+    * [MacOS] (#macos)
+    * [Linux] (#linux)
+* [Description] (#description)
+* [Usage] (#usage)
+
+## Getting started
+
+### Web version
+
+VIPNODES is available online with the same functionalities of the desktop version.
+You can visit VIPNODES at [unica.it](https://unica.it).
+
+### Desktop version
+
+Click on [Releases](https://github.com/daniloLecca/vipnodes-desktop/releases) and download the latest version suited for your device.
+
+***
+
+#### Windows
+
+##### Step 1
+
+> [!IMPORTANT]
+> Make sure to have installed Microsoft Visual C++ Redistributable.
+
+In order to do this, run the following command in PowerShell:
+
+```powershell
+Get-ItemProperty HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\* | Where-Object { $_.DisplayName -like "*Visual C++*" } | Select-Object DisplayName, DisplayVersion
+```
+
+if nothing gets displayed, you can install it at [Microsoft Visual C++ Redistributable](https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist?view=msvc-170). Once you installed it, restart your device.
+
+##### Step 2
+
+Open *VIPNODES Setup 1.1.0.exe*. If a Microsoft security windows opens up, click *More info > Run anyway*.
+
+***
+
+#### MacOS
+
+1. Open *VIPNODES-1.1.0-arm64.dmg*
+2. Move *VIPNODES* to the Applications folder.
+3. Eject the mounted disk image.
+
+>[!IMPORTANT]
+> Because VIPNODES is an open-source project and not notarized through a paid Apple Developer certificate, macOS will
+> flag it with a security warning on first launch (e.g., "VIPNODES is damaged and can’t be opened" or "Apple cannot
+> check it for malicious software").
+> You can bypass this warning using either of the methods below.
+
+##### Method 1: Remove the Quarantine Flag
+
+1. Open Terminal (Cmd + Space, type Terminal, and press Enter).
+2. Run the following command:
+
+```bash
+sudo xattr -cr /Applications/VIPNODES.app
+```
+
+3. Type your macOS administrator password when prompted (characters will not show while typing) and press Enter.
+4. Launch VIPNODES normally from your Applications folder or Spotlight.
+
+> [!NOTE]
+> Note: If you moved the app to a custom folder instead of /Applications, replace the path above with the actual path
+> to the app.
+
+##### Method 2: System Settings Override
+
+1. Try to open VIPNODES once from /Applications so macOS logs the launch attempt, then close the warning dialog.
+2. Open System Settings (or System Preferences on macOS Monterey and older).
+3. Navigate to Privacy & Security.
+4. Scroll down to the Security section.
+5. You will see a notice: "VIPNODES was blocked from use because it is not from an identified developer."
+6. Click Open Anyway next to the notice and confirm with your admin password or Touch ID.
+
+***
+
+#### Linux
+
+##### Step 1: Make the AppImage executable
+
+Before running the application, grant execute permissions to the downloaded `.AppImage` file:
+
+```bash
+
+chmod +x VIPNODES-1.1.0.AppImage
+
+```
+
+##### Step 2: Ensure Fuse2 is installed
+
+> [!IMPORTANT]
+> AppImage files require libfuse2 to mount and run. Many recent Linux distributions
+> (such as Ubuntu 22.04 and newer, Debian 12, Fedora) do not include libfuse2 by
+> default as they have transitioned to fuse3.
+
+If running the AppImage produces an error related to FUSE (e.g., `dlopen(): error loading libfuse.so.2` or `AppImages require FUSE to run`), install the compatibility package:
+
+* **Ubuntu / Debian / Mint**
+  
+```bash
+sudo apt update
+sudo apt install libfuse2
+```
+
+* **Fedora**
+
+```bash
+sudo dnf install fuse-libs
+```
+
+* **Arch Linux / Manjaro**
+  
+```bash
+sudo pacman -S fuse2
+```
+
+##### Step 3: Run the application
+
+Double-click VIPNODES-1.1.0.AppImage or launch it from the terminal:
+
+```bash
+./VIPNODES-1.1.0.AppImage
+```
+
+> [!TIP]
+> If you cannot or do not wish to install `libfuse2`, you can launch the app directly
+> by passing the `--appimage-extract-and-run` flag:
+
+```bash
+./VIPNODES-1.1.0.AppImage --appimage-extract-and-run
+```
 
 ## Description
 
-This tool was created with the intent of making available the tool *VIPNODES*, which was originally developed in **MATLAB**.
+VIPNODES proposes itself as a fast, reliable and accurate alternative for network analysis providing a wide range of options for graph visualization, centrality measures computation and data interpretation.
 
-These are some of the functionalities introduced in this tool:
+What differentiates VIPNODES from the other tools is its unique architecture. An entirely *Python-driven* stack, with the aid of NumPy, SciPy, Networkx and FastAPI, establishes an excellent solution for performing accurate scientific calculations.
 
-* Analyze a complex network given the sparse adjacency matrix. Note that at the moment only *.mat* files are accepted
-* Visualize the complex network. With **vipnodes** you can take a look at the entire network thanks to a force directed layout, which gives a clean and ordered visualization of the nodes and edges
-* Discover the most important nodes of the complex network with some of the most interesting measures, for example:
-  * Communicability of a node with entire network
-  * Subgraph centrality of a node
-  * Starting convenience of a node
-* Exploit the most common and performing algorithms to compute these metrics via low rank approximation and Gauss quadrature
-* Get statistics of the computation, *i.e.* distribution of the spectrum, bounds for a metric in a certain node and a heatmap of the adjacency matrix
+The entire GUI is built on top of Vue.js and employs specific tools and libraries in order to provide great performance and high usability. For example, leveraging [Sigma.js v2](https://www.sigmajs.org/) for network visualization ensures a smooth user experience, capable of handling the visualization of hundreds of thousands of nodes.
 
-The entire project is made in Vue, with the aid of Sigma.js v2 and Graphology for the visualization of the network, and the backend which processes the complex network is based on FastAPI, a popular and high-performing Python framework for backend development.
+The neat separation between *frontend* and *backend* yields the possibility to scale and maintain them independently.
 
-All the data working data of the web-app is stored with Redis, an high performance in-memory database. Redis stores the data with _key-value_ pairs that are going to be accessible through a token with validity of 2 hours.
+```mermaid
+graph LR;
+    subgraph Frontend [Frontend]
+        Vue.js --> D3.js;
+        Vue.js --> Sigma.js-V2;
+        Vue.js <--> Electron.js;
+    end
 
-Note that the database in this case is not persistent since there is no need to save the network persistently. Future versions may implement a persistent storage if needed.
+    Frontend <-- "Rest API" --> Backend;
+
+    subgraph Backend [Backend]
+        FastAPI --> SciPy;
+        FastAPI --> NetworkX;
+        FastAPI --> PRIMME;
+    end
+
+```
 
 ## Usage
 
-![Random Network Generation Popup](./frontend/src/assets/imgs/random-generation-popup.png)
+### Network input and synthetic graph generation
 
-1. Upload a complex network: 
-    * Using a **file** (.mat file containing the sparse adjacency matrix)
-    * Generating a *scale free* or *small world* network
-2. Visualize the complex network, supported interactions: 
-    * Nodes dragging
-    * Node clicking to show node degree
-    * Zoom, unzoom or reset camera zoom 
-    * Full screen visualization
-3. Analyse the complex network: 
-    * Navigate to `Analysis`
-    * Fill out the form with your parameters
-    * Compute and wait (you can even cancel the computation)
-4. See the results of the computation: 
+Different file extensions are supported. Precisely, MATLAB `.mat` files, Graphology-compatible `.json` and [GEXF](https://gexf.net) `.gexf` format.
 
-### Results
+> [!NOTE]
+> MATLAB `.mat` file must contain exactly one variable representing the sparse binary adjacency matrix of the network. Non-zero diagonal entries will be mapped to zero as well as the nonpositive entries.
 
-![Computation Results](./frontend/src/assets/imgs/computation-results-screenshot.png)
+Alternatively, one can generate a synthetic complex network using either the Barabási–Albert, Watts-Strogatz or binomial Erdős–Rényi model, with the possibility to precisely adjust the parameters.
 
-> **Observe the computation parameters and results**
+![generation-and-upload](/frontend/public/imgs/random-generation-popup.png)
 
-* * *
-### Export
+***
 
-![Export Results](./frontend/src/assets/imgs/export-results-screenshot.png)
+### Visualization and interaction
 
-> **Export the results in PDF, CSV or JSON. Do not include images if too many iterations were needed because the SVGs become too dense to export.**
+Topological network analysis is achievable with a dedicated dashboard:
 
-* * *
-### Visualize scatterplot and eigenvalues
+![network visualization](/frontend/public/imgs/network-visualization.png)
 
-![Scatterplot EigenValues](./frontend/src/assets/imgs/scatter-plot-eigenvalues-screenshot.png)
+Different interactions are supported, i.e. node dragging and degree displaying. The controls on the right support zooming, *fullscreen* mode and vertex search.
 
-> **Visualize which are the VIP nodes and what is their *'score'*. Observe which eigenvalues have been used, what is their value and their distribution. Scroll over the graph to zoom and click on the description of the section to zoom the entire section.**
+***
 
-* * *
-### Observe bounds evolution
+### Centrality computation
 
-![Bounds History](./frontend/src/assets/imgs/bounds-history-screenshot.png)
+Different centrality measures are supported along with a wide range of options and parameters.
 
->**See the evolution of lower and upper bounds throughout the computation. Hover on the plots to see the corresponding values.**
+![computation form](/frontend/public/imgs/computation-form.png)
+
+***
+
+### Results diagnostics and exportation
+
+Complete analytics are shown ranging from computation time to algorithm-specific outcomes. The prompted computation parameters are reported for a rapid evaluation of the performed experiment.
+
+![results and exportation](/frontend/public/imgs/results-and-exportation.png)
+
+Exporting the results can be done in three different ways:
+
+* **PDF** format: a complete document which reports computation results and parameters alongside with calculation diagnostics.
+* **CSV** format: *tabular-like* file where each row reports a VIP node with its  corresponding score, with descending order.
+* **JSON** format: a *key-value* representation of the results, particularly useful when using data analysis tools.
+
+> [!TIP]
+> Try not including the diagnostic images from the PDF file if the download is taking too long. This often happens if many iterations of the low rank approximation algorithm were needed.
+
+Results diagnostics comprehend a *snapshot* of the adjacency matrix sparsity pattern, evaluated eigenvalues visualization and the *low rank* bounds evaluation overview.
+
+![diagnostics](/frontend/public/imgs/diagnostics-evaluation.png)
+
+> [!TIP]
+> Try hovering over the plots to observe additional information.
