@@ -14,14 +14,14 @@ Some of the key functionalities offered by VIPNODES:
 
 ## Table of contents
 
-* [Getting started] (#getting-started)
-  * [Web] (#web-version)
-  * [Desktop] (#desktop-version)
-    * [Windows] (#windows)
-    * [MacOS] (#macos)
-    * [Linux] (#linux)
-* [Description] (#description)
-* [Usage] (#usage)
+* [Getting started](#getting-started)
+  * [Web version](#web-version)
+  * [Desktop](#desktop-version)
+    * [Windows](#windows)
+    * [MacOS](#macos)
+    * [Linux](#linux)
+* [Description](#description)
+* [Usage](#usage)
 
 ## Getting started
 
