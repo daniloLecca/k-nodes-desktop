@@ -132,7 +132,7 @@
 
             sigmaInstance.value = new Sigma(graph, container, {
                 labelRenderedSizeThreshold: 100,
-                defaultNodeColor: "#5cb0cf",// localStorage.getItem('vipnodes-theme') === 'light' ? "#5cb0cf" : "yellow",
+                defaultNodeColor: "#5cb0cf",// localStorage.getItem('knodes-theme') === 'light' ? "#5cb0cf" : "yellow",
                 defaultEdgeColor: "grey",
                 zIndex: true, 
             })
@@ -174,26 +174,25 @@
             sigmaInstance.value.on("upNode", handleUp);
             sigmaInstance.value.on("upStage", handleUp);
 
-            const vipNodes = Array.isArray(computationStore.computationResult?.vip_nodes)
-                ? computationStore.computationResult.vip_nodes
-                : []
+            const kNodesRaw = computationStore.computationResult?.k_nodes ?? computationStore.computationResult?.vip_nodes
+            const kNodes = Array.isArray(kNodesRaw) ? kNodesRaw : []
 
             // every time the page is loaded, the rendering gets refreshed
-            // make orange the VIP nodes and update their labels
+            // make orange the K-nodes and update their labels
             sigmaInstance.value.setSetting("nodeReducer", (nodeId, data) => {
-                const isVip = vipNodes.includes(Number(nodeId))
+                const isKNode = kNodes.includes(Number(nodeId))
                 const isSelected = selectedNodeId.value === nodeId
                 const degree = nodeDegrees.get(nodeId) ?? 0
 
-                const baseLabel = isVip
-                    ? "VIP node: " + String(Number(nodeId) + 1)
+                const baseLabel = isKNode
+                    ? "K-node: " + String(Number(nodeId) + 1)
                     : data.label
 
                 return {
                     ...data,
-                    color: isVip ? "orange" : data.color,
-                    size: isVip ? 5 : data.size,
-                    zIndex: isVip ? 9999 : 1,
+                    color: isKNode ? "orange" : data.color,
+                    size: isKNode ? 5 : data.size,
+                    zIndex: isKNode ? 9999 : 1,
                     label: isSelected
                         ? `${baseLabel}, degree: ${degree}`
                         : baseLabel

@@ -114,91 +114,91 @@ def test_adjacency_power():
 
     # --- START ASSERTS --- #
     # subgraph centrality with low rank approximation
-    vip, vip_scores, _, _ = sgcenlr(net, "exp", 1, opts=options_lr)
-    assert vip[0] == 4345
-    assert vip_scores[0] == pytest.approx(185.7289)
+    k_nodes, k_scores, _, _ = sgcenlr(net, "exp", 1, opts=options_lr)
+    assert k_nodes[0] == 4345
+    assert k_scores[0] == pytest.approx(185.7289)
 
-    vip, vip_scores, _, _ = sgcenlr(net, "res", 1, opts=options_lr)
-    assert vip[0] == 2553
-    assert vip_scores[0] == pytest.approx(1.1547479)
+    k_nodes, k_scores, _, _ = sgcenlr(net, "res", 1, opts=options_lr)
+    assert k_nodes[0] == 2553
+    assert k_scores[0] == pytest.approx(1.1547479)
 
     # communicability with low rank approximation
-    vip, vip_scores, _, _ = commlr(net, 0, "exp", 1, opts=options_lr)
-    assert vip[0] == 2235
-    assert vip_scores[0] == pytest.approx(0.4154895808)
+    k_nodes, k_scores, _, _ = commlr(net, 0, "exp", 1, opts=options_lr)
+    assert k_nodes[0] == 2235
+    assert k_scores[0] == pytest.approx(0.4154895808)
 
-    vip, vip_scores, _, _ = commlr(net, 0, "res", 1, opts=options_lr)
-    assert vip[0] == 2235
-    assert vip_scores[0] == pytest.approx(0.00918930433)
+    k_nodes, k_scores, _, _ = commlr(net, 0, "res", 1, opts=options_lr)
+    assert k_nodes[0] == 2235
+    assert k_scores[0] == pytest.approx(0.00918930433)
 
     # starting convenience with low rank approximation
-    vip, vip_scores, _, _ = stconvlr(net, "exp", 1, opts=options_lr)
-    assert vip[0] == 4345
-    assert vip_scores[0] == pytest.approx(3402.56464011)
+    k_nodes, k_scores, _, _ = stconvlr(net, "exp", 1, opts=options_lr)
+    assert k_nodes[0] == 4345
+    assert k_scores[0] == pytest.approx(3402.56464011)
 
-    vip, vip_scores, _, _ = stconvlr(net, "res", 1, opts=options_lr)
-    assert vip[0] == 2553
-    assert vip_scores[0] == pytest.approx(8.49223480)
+    k_nodes, k_scores, _, _ = stconvlr(net, "res", 1, opts=options_lr)
+    assert k_nodes[0] == 2553
+    assert k_scores[0] == pytest.approx(8.49223480)
 
-    vip, vip_scores, _, _, _ = sgcengauss(net, "exp", 1, opts=options_gauss)
-    print(vip[0], vip_scores[0])
-    assert vip[0] == 4345
-    assert vip_scores[0] == pytest.approx(186.60281638)
+    k_nodes, k_scores, _, _, _ = sgcengauss(net, "exp", 1, opts=options_gauss)
+    print(k_nodes[0], k_scores[0])
+    assert k_nodes[0] == 4345
+    assert k_scores[0] == pytest.approx(186.60281638)
 
-    vip, vip_scores, _, _, _ = sgcengauss(net, "res", 1, opts=options_gauss)
-    print(vip[0], vip_scores[0])
-    assert vip[0] == 4345
-    assert vip_scores[0] == pytest.approx(1.31786168)
+    k_nodes, k_scores, _, _, _ = sgcengauss(net, "res", 1, opts=options_gauss)
+    print(k_nodes[0], k_scores[0])
+    assert k_nodes[0] == 4345
+    assert k_scores[0] == pytest.approx(1.31786168)
 
-    vip, vip_scores, _, _, _ = commgauss(net, 0, "exp", 1, opts=options_gauss)
-    print(vip[0], vip_scores[0])
-    assert vip[0] == 0
-    assert vip_scores[0] == pytest.approx(3.592502075)
+    k_nodes, k_scores, _, _, _ = commgauss(net, 0, "exp", 1, opts=options_gauss)
+    print(k_nodes[0], k_scores[0])
+    assert k_nodes[0] == 0
+    assert k_scores[0] == pytest.approx(3.592502075)
 
-    vip, vip_scores, _, _, _ = commgauss(net, 0, "res", 1, opts=options_gauss)
-    print(vip[0], vip_scores[0])
-    assert vip[0] == 0
-    assert vip_scores[0] == pytest.approx(1.03219718)
+    k_nodes, k_scores, _, _, _ = commgauss(net, 0, "res", 1, opts=options_gauss)
+    print(k_nodes[0], k_scores[0])
+    assert k_nodes[0] == 0
+    assert k_scores[0] == pytest.approx(1.03219718)
 
-    vip, vip_scores, _, _, _ = stconvgauss(net, "exp", 1, opts=options_gauss)
-    print(vip[0], vip_scores[0])
-    assert vip[0] == 4345
-    assert vip_scores[0] == pytest.approx(3391.7560733)
+    k_nodes, k_scores, _, _, _ = stconvgauss(net, "exp", 1, opts=options_gauss)
+    print(k_nodes[0], k_scores[0])
+    assert k_nodes[0] == 4345
+    assert k_scores[0] == pytest.approx(3391.7560733)
 
-    vip, vip_scores, _, _, _ = stconvgauss(net, "res", 1, opts=options_gauss)
-    print(vip[0], vip_scores[0])
-    assert vip[0] == 4345
-    assert vip_scores[0] == pytest.approx(6.547312769433)
+    k_nodes, k_scores, _, _, _ = stconvgauss(net, "res", 1, opts=options_gauss)
+    print(k_nodes[0], k_scores[0])
+    assert k_nodes[0] == 4345
+    assert k_scores[0] == pytest.approx(6.547312769433)
 
-    vip, vip_scores, _, _, _, _, _, _, _, _ = sgcenhyb(net, "exp", 1, opts=options_hyb)
-    print(vip[0], vip_scores[0])
-    assert vip[0] == 4345
-    assert vip_scores[0] == pytest.approx(186.60281638)
+    k_nodes, k_scores, _, _, _, _, _, _, _, _ = sgcenhyb(net, "exp", 1, opts=options_hyb)
+    print(k_nodes[0], k_scores[0])
+    assert k_nodes[0] == 4345
+    assert k_scores[0] == pytest.approx(186.60281638)
 
-    vip, vip_scores, _, _, _, _, _, _, _, _ = sgcenhyb(net, "res", 1, opts=options_hyb)
-    print(vip[0], vip_scores[0])
-    assert vip[0] == 2553
-    assert vip_scores[0] == pytest.approx(1.289192272)
+    k_nodes, k_scores, _, _, _, _, _, _, _, _ = sgcenhyb(net, "res", 1, opts=options_hyb)
+    print(k_nodes[0], k_scores[0])
+    assert k_nodes[0] == 2553
+    assert k_scores[0] == pytest.approx(1.289192272)
 
-    vip, vip_scores, _, _, _, _, _, _, _, _ = commhyb(net, 0, "exp", 1, opts=options_hyb)
-    print(vip[0], vip_scores[0])
-    assert vip[0] == 2223
-    assert vip_scores[0] == pytest.approx(0.4125254997914487)
+    k_nodes, k_scores, _, _, _, _, _, _, _, _ = commhyb(net, 0, "exp", 1, opts=options_hyb)
+    print(k_nodes[0], k_scores[0])
+    assert k_nodes[0] == 2223
+    assert k_scores[0] == pytest.approx(0.4125254997914487)
 
-    vip, vip_scores, _, _, _, _, _, _, _, _ = commhyb(net, 0, "res", 1, opts=options_hyb)
-    print(vip[0], vip_scores[0])
-    assert vip[0] == 2223
-    assert vip_scores[0] == pytest.approx(0.001226976433)
+    k_nodes, k_scores, _, _, _, _, _, _, _, _ = commhyb(net, 0, "res", 1, opts=options_hyb)
+    print(k_nodes[0], k_scores[0])
+    assert k_nodes[0] == 2223
+    assert k_scores[0] == pytest.approx(0.001226976433)
 
-    vip, vip_scores, _, _, _, _, _, _, _, _ = stconvhyb(net, "exp", 1, opts=options_hyb)
-    print(vip[0], vip_scores[0])
-    assert vip[0] == 4345
-    assert vip_scores[0] == pytest.approx(3391.7560733)
+    k_nodes, k_scores, _, _, _, _, _, _, _, _ = stconvhyb(net, "exp", 1, opts=options_hyb)
+    print(k_nodes[0], k_scores[0])
+    assert k_nodes[0] == 4345
+    assert k_scores[0] == pytest.approx(3391.7560733)
 
-    vip, vip_scores, _, _, _, _, _, _, _, _ = stconvhyb(net, "res", 1, opts=options_hyb)
-    print(vip[0], vip_scores[0])
-    assert vip[0] == 4345
-    assert vip_scores[0] == pytest.approx(6.547312769433)
+    k_nodes, k_scores, _, _, _, _, _, _, _, _ = stconvhyb(net, "res", 1, opts=options_hyb)
+    print(k_nodes[0], k_scores[0])
+    assert k_nodes[0] == 4345
+    assert k_scores[0] == pytest.approx(6.547312769433)
     # --- END ASSERTS --- #
 
 

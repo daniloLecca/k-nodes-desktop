@@ -15,15 +15,18 @@
     const exportOption = ref('pdf')
     const exportImgCB = ref(false) // export images in pdf?
     // if not array -> empty array 
-    const vipNodes = computed(() => Array.isArray(computationStore.computationResult?.vip_nodes)
-        ? computationStore.computationResult.vip_nodes
-        : [])
-    const vipScores = computed(() => Array.isArray(computationStore.computationResult?.vip_scores)
-        ? computationStore.computationResult.vip_scores
-        : [])
-    const vipLowrank = computed(() => Array.isArray(computationStore.computationResult?.vip_lowrank)
-        ? computationStore.computationResult.vip_lowrank
-        : [])
+    const kNodes = computed(() => {
+        const val = computationStore.computationResult?.k_nodes ?? computationStore.computationResult?.vip_nodes
+        return Array.isArray(val) ? val : []
+    })
+    const kScores = computed(() => {
+        const val = computationStore.computationResult?.k_scores ?? computationStore.computationResult?.vip_scores
+        return Array.isArray(val) ? val : []
+    })
+    const kLowrank = computed(() => {
+        const val = computationStore.computationResult?.k_lowrank ?? computationStore.computationResult?.vip_lowrank
+        return Array.isArray(val) ? val : []
+    })
     const matrixVectorProducts = computed(() => {
         if (Array.isArray(computationStore.computationResult?.["matrix vector products"])) {
             return computationStore.computationResult["matrix vector products"]
@@ -46,20 +49,20 @@
 
     // infer convergence 
         if (showLegacyDetails.value && computationStore.computationData.compMethod === 'lr') {
-        if (vipNodes.value.length === computationStore.computationData.numNodes) {
+        if (kNodes.value.length === computationStore.computationData.numNodes) {
             lowRankConvergence.value = "Strong convergence"
-        } else if (vipNodes.value.length > computationStore.computationData.numNodes + 100) {
+        } else if (kNodes.value.length > computationStore.computationData.numNodes + 100) {
             lowRankConvergence.value = "No convergence"
         } else {
             lowRankConvergence.value = "Weak convergence"
-            additionalNodes.value = vipNodes.value.length - computationStore.computationData.numNodes
+            additionalNodes.value = kNodes.value.length - computationStore.computationData.numNodes
         }
         } else if (showLegacyDetails.value) {
         if (computationStore.computationResult.convergence_lowrank === 'no convergence') {
             lowRankConvergence.value = "No convergence"
         } else if (computationStore.computationResult.convergence_lowrank === 'weak convergence') {
             lowRankConvergence.value = "Weak convergence"
-            additionalNodes.value = vipLowrank.value.length - computationStore.computationData.numNodesLR
+            additionalNodes.value = kLowrank.value.length - computationStore.computationData.numNodesLR
         } else {
             lowRankConvergence.value = "Strong convergence"
         }
@@ -197,14 +200,14 @@
             }
         }
 
-        doc.text("The VIP nodes have been identified successfully!", y, downShift())
+        doc.text("The K-nodes have been identified successfully!", y, downShift())
 
         if (showLegacyDetails.value && computationStore.computationData.compMethod === 'hyb') {
             doc.text(`Number of nodes sought via low rank approximation: ${computationStore.computationData.numNodesLR}`, y, downShift())
-            doc.text(`Number of nodes identified via low rank approximation: ${vipLowrank.value.length}`, y, downShift())
+            doc.text(`Number of nodes identified via low rank approximation: ${kLowrank.value.length}`, y, downShift())
         }
 
-        doc.text(`Total number of VIP nodes identified: ${vipNodes.value.length}`, y, downShift())
+        doc.text(`Total number of K-nodes identified: ${kNodes.value.length}`, y, downShift())
         doc.text(`Elapsed time: ${computationStore.computationResult.elapsed_time}s`, y, downShift())
 
         if (showLegacyDetails.value && computationStore.computationData.compMethod !== 'gauss') {
@@ -221,10 +224,10 @@
         x = 10
         doc.text("The following nodes have been identified: ", y, downShift())
 
-        for (let i = 0; i < vipNodes.value.length; i++) {
-            const vipNode = (vipNodes.value)[i]
-            const vipScore = (vipScores.value)[i]
-            doc.text(`Node: ${vipNode + 1}, score: ${vipScore}`, y, downShift())
+        for (let i = 0; i < kNodes.value.length; i++) {
+            const kNode = (kNodes.value)[i]
+            const kScore = (kScores.value)[i]
+            doc.text(`Node: ${kNode + 1}, score: ${kScore}`, y, downShift())
             if (x === 260) { // after this point there is no more space in the page
                 doc.addPage()
                 x = 10
@@ -246,34 +249,130 @@
         URL.revokeObjectURL(url)
     }
 
-    // the json file contains all of the computation data and results available (even from previous computations)
-    // same as "Computation results" section, only the useful information for the current computation are interesting
     function jsonResults() {
         const toOneBasedNodes = (nodes) => Array.isArray(nodes)
             ? nodes.map((node) => typeof node === 'number' ? node + 1 : node)
             : []
 
-        const normalizedComputationResult = {
-            ...computationStore.computationResult,
-            vip_nodes: toOneBasedNodes(computationStore.computationResult?.vip_nodes),
-            vip_lowrank: toOneBasedNodes(computationStore.computationResult?.vip_lowrank),
-            candidates_history: Array.isArray(computationStore.computationResult?.candidates_history)
-                ? computationStore.computationResult.candidates_history.map((entry) => ({
-                    ...entry,
-                    candidate_nodes: toOneBasedNodes(entry?.candidate_nodes)
+        const d = computationStore.computationData || {}
+        const r = computationStore.computationResult || {}
+        const isLegacy = legacyCentralityMeasures.has(d.cenIndex)
+
+        const network = {
+            fileName: complexNetworkStore.fileName || '',
+            nodes: complexNetworkStore.nnodes,
+            edges: complexNetworkStore.edges,
+            selfLoops: complexNetworkStore.selfLoops,
+            largestEigenvalue: complexNetworkStore.largestEigenvalue,
+            maxAlpha: complexNetworkStore.maxAlpha
+        }
+
+        let parameters = {}
+        if (!isLegacy) {
+            parameters = {
+                centralityMeasure: d.cenIndex,
+                numNodes: d.numNodes,
+                ...(d.cenIndex === 'eigenvector' ? { maxIter: d.maxIter, tol: d.tol } : {}),
+                ...(d.cenIndex === 'katz' ? { alpha: d.alpha, beta: d.beta, maxIter: d.maxIter, tol: d.tol } : {}),
+                ...(d.cenIndex === 'pagerank' ? { alpha: d.alpha, maxIter: d.maxIter, tol: d.tol } : {})
+            }
+        } else {
+            parameters = {
+                centralityMeasure: d.cenIndex,
+                ...(d.cenIndex === 'comm' ? { targetNode: (d.nodeComm ?? 0) + 1 } : {}),
+                computationMethod: d.compMethod,
+                matrixFunction: d.matFun,
+                ...(d.matFun === 'resolvent' ? { alpha: d.alphaRes } : {}),
+                spectrumShift: Boolean(d.shift),
+                numNodes: d.numNodes
+            }
+
+            if (d.compMethod === 'gauss') {
+                parameters.gaussTolerance = d.gaussTol
+            } else if (d.compMethod === 'lr') {
+                parameters.lowRankTolerance = d.LRTol
+                parameters.maxIterationsLowRank = d.numIterLR
+                parameters.eigenbatchSize = d.eigenSZ
+            } else if (d.compMethod === 'hyb') {
+                parameters.numNodesLowRank = d.numNodesLR
+                parameters.lowRankTolerance = d.LRTol
+                parameters.maxIterationsLowRank = d.numIterLR
+                parameters.eigenbatchSize = d.eigenSZ
+                parameters.gaussTolerance = d.gaussTol
+            }
+        }
+
+        const formatBoundsHistory = (history) => {
+            if (!Array.isArray(history)) return []
+            return history.map((entry, iterIdx) => {
+                const candidateNodes = toOneBasedNodes(entry?.candidate_nodes)
+                const lowerBounds = Array.isArray(entry?.lower_bounds) ? entry.lower_bounds : []
+                const upperBounds = Array.isArray(entry?.upper_bounds) ? entry.upper_bounds : []
+
+                const candidates = candidateNodes.map((node, idx) => ({
+                    node,
+                    lowerBound: lowerBounds[idx] ?? null,
+                    upperBound: upperBounds[idx] ?? null
                 }))
-                : computationStore.computationResult?.candidates_history
+
+                return {
+                    iteration: iterIdx + 1,
+                    eigenvalue: entry?.eigenvalue ?? null,
+                    activeCandidatesCount: candidateNodes.length,
+                    candidates
+                }
+            })
+        }
+
+        const oneBasedKNodes = toOneBasedNodes(r.k_nodes ?? r.vip_nodes)
+        const scores = Array.isArray(r.k_scores)
+            ? r.k_scores
+            : (Array.isArray(r.vip_scores) ? r.vip_scores : [])
+        const mvProducts = matrixVectorProducts.value
+
+        let results = {
+            elapsedTime: r.elapsed_time,
+            kNodes: oneBasedKNodes,
+            kScores: scores,
+            ranking: oneBasedKNodes.map((node, i) => ({
+                rank: i + 1,
+                node,
+                score: scores[i] ?? null
+            }))
+        }
+
+        if (isLegacy) {
+            if (d.compMethod === 'gauss') {
+                results.gaussConvergence = r.convergence_gauss
+                results.matrixVectorProducts = mvProducts
+                results.meanMatrixVectorProducts = mvProducts.length > 0
+                    ? mvProducts.reduce((sum, n) => sum + n, 0) / mvProducts.length
+                    : 0
+            } else if (d.compMethod === 'lr') {
+                results.lowRankConvergence = lowRankConvergence.value
+                if (lowRankConvergence.value === 'Weak convergence') {
+                    results.additionalNodes = additionalNodes.value
+                }
+                results.usedEigenpairs = r.used_eigenpairs            
+                results.boundsHistory = formatBoundsHistory(r.candidates_history)
+            } else if (d.compMethod === 'hyb') {
+                results.lowRankConvergence = lowRankConvergence.value
+                if (lowRankConvergence.value === 'Weak convergence') {
+                    results.additionalNodes = additionalNodes.value
+                }
+                results.usedEigenpairs = r.used_eigenpairs
+                results.kNodesLowRank = toOneBasedNodes(r.k_lowrank ?? r.vip_lowrank)
+                results.kScoresLowRank = r.ksgcen_lowrank || r.kcomm_lowrank || r.kstconv_lowrank || r.vipsgcen_lowrank || r.vipcomm_lowrank || r.vipstconv_lowrank || []
+                results.gaussConvergence = r.convergence_gauss
+                results.matrixVectorProducts = mvProducts
+                results.boundsHistory = formatBoundsHistory(r.candidates_history)
+            }
         }
 
         const payload = {
-            fileName: complexNetworkStore.fileName || '',
-            network: {
-                nodes: complexNetworkStore.nnodes,
-                edges: complexNetworkStore.edges,
-                selfLoops: complexNetworkStore.selfLoops
-            },
-            computationData: computationStore.computationData,
-            computationResult: normalizedComputationResult
+            network,
+            parameters,
+            results
         }
 
         saveTextFile(JSON.stringify(payload, null, 2), 'results.json', 'application/json;charset=utf-8')
@@ -282,9 +381,9 @@
     function csvResults() {
         const rows = [['Node', 'Score']]
 
-        for (let i = 0; i < vipNodes.value.length; i += 1) {
-            const node = vipNodes.value[i] + 1
-            const score = vipScores.value[i] ?? ''
+        for (let i = 0; i < kNodes.value.length; i += 1) {
+            const node = kNodes.value[i] + 1
+            const score = kScores.value[i] ?? ''
             rows.push([node, score])
         }
 
@@ -332,10 +431,10 @@
                 {{ additionalNodes }} additional nodes have been added. <br>
             </p>
         </h2>
-            <h2 v-else>The VIP nodes have been identified successfully!</h2>
+            <h2 v-else>The K-nodes have been identified successfully!</h2>
             <h3 v-if="isLegacyComputation() && computationStore.computationData.compMethod === 'hyb'"> Number of nodes sought via low rank approximation: {{ computationStore.computationData.numNodesLR }}</h3>   
-            <h3 v-if="isLegacyComputation() && computationStore.computationData.compMethod === 'hyb'"> Number of nodes identified via low rank approximation: {{ vipLowrank.length }}</h3>   
-        <h3>Total number of VIP nodes identified: {{ vipNodes.length }}</h3>
+            <h3 v-if="isLegacyComputation() && computationStore.computationData.compMethod === 'hyb'"> Number of nodes identified via low rank approximation: {{ kLowrank.length }}</h3>   
+        <h3>Total number of K-nodes identified: {{ kNodes.length }}</h3>
         <h3>Elapsed time: {{ computationStore.computationResult.elapsed_time }}s</h3>
             <h3 v-if="isLegacyComputation() && computationStore.computationData.compMethod !== 'gauss'">Number of eigenpairs used: {{ computationStore.computationResult.used_eigenpairs }}</h3>
             <h3 v-if="isLegacyComputation() && computationStore.computationData.compMethod === 'gauss'">Mean of matrix vector products:
@@ -370,16 +469,16 @@
     <h2>The following nodes have been identified:</h2>
     <main>
         <div class="results-table-column">
-            <h4>VIP nodes: </h4>
+            <h4>K-nodes: </h4>
             <ul>
-                <li v-for="node in vipNodes"> Node: {{ node + 1 }} </li>
+                <li v-for="node in kNodes"> Node: {{ node + 1 }} </li>
             </ul>
         </div>
 
         <div class="results-table-column">
-            <h4>VIP scores: </h4>
+            <h4>K-scores: </h4>
             <ul>
-                <li v-for="score in vipScores"> Score: {{ score }} </li>
+                <li v-for="score in kScores"> Score: {{ score }} </li>
             </ul>
         </div>
 
@@ -411,7 +510,7 @@
             :title="'History of low rank bounds'"
             :description="'All the bounds estimated throughout the computation. For each node, the lower bound (LB) \
             and upper bound (UB) estimate of the \'score\' throughout each iteration (x-axis) is plotted. \nIf a node is no longer \
-            eligible as a VIP node its bounds are no longer displayed. \n\n\n\nClick to zoom and hover to interact. '"
+            eligible as a K-node its bounds are no longer displayed. \n\n\n\nClick to zoom and hover to interact. '"
             :viz="'boundsHistory'"
             :interaction-scale="zoomedSection === 'boundsHistory' ? 2 : 1"
             @click="toggleSectionZoom('boundsHistory')"

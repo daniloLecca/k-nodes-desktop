@@ -262,12 +262,14 @@ async def get_sgclr(request: LowRankSubgraphCentrality, session: dict = Depends(
     }
     try: 
         t0 = perf_counter()
-        vip_nodes, vip_sgc, num_eigs, candidates_history = sgcenlr(network, request.fun_name or "exp", request.nnodes or 1, options)
+        k_nodes, k_sgc, num_eigs, candidates_history = sgcenlr(network, request.fun_name or "exp", request.nnodes or 1, options)
     except SOLVER_ERRORS: 
         return JSONResponse(status_code=400, content={"error": "max iterations reached"})
     return {
-        "vip_nodes": vip_nodes.tolist(),
-        "vip_scores": vip_sgc.tolist(),
+        "k_nodes": k_nodes.tolist(),
+        "k_scores": k_sgc.tolist(),
+        "vip_nodes": k_nodes.tolist(),
+        "vip_scores": k_sgc.tolist(),
         "used_eigenpairs": num_eigs, 
         "elapsed_time": perf_counter() - t0,
         "candidates_history": serialize_candidates_history(candidates_history)
@@ -292,12 +294,14 @@ async def get_commlr(request: LowRankCommunicability, session: dict = Depends(ge
     }
     try: 
         t0 = perf_counter()
-        vip_nodes, vip_comm, num_eigs, candidates_history = commlr(network, request.i, request.fun_name or "exp", request.nnodes or 1, options)
+        k_nodes, k_comm, num_eigs, candidates_history = commlr(network, request.i, request.fun_name or "exp", request.nnodes or 1, options)
     except SOLVER_ERRORS: 
         return JSONResponse(status_code=400, content={"error": "max iterations reached"})
     return {
-        "vip_nodes": vip_nodes.tolist(),
-        "vip_scores": vip_comm.tolist(),
+        "k_nodes": k_nodes.tolist(),
+        "k_scores": k_comm.tolist(),
+        "vip_nodes": k_nodes.tolist(),
+        "vip_scores": k_comm.tolist(),
         "used_eigenpairs": num_eigs, 
         "elapsed_time": perf_counter() - t0,
         "candidates_history": serialize_candidates_history(candidates_history)
@@ -322,12 +326,14 @@ async def get_stconvlr(request: LowRankSubgraphCentrality, session: dict = Depen
     }
     try: 
         t0 = perf_counter()
-        vip_nodes, vip_stconv, num_eigs, candidates_history = stconvlr(network, request.fun_name or "exp", request.nnodes or 1, options)
+        k_nodes, k_stconv, num_eigs, candidates_history = stconvlr(network, request.fun_name or "exp", request.nnodes or 1, options)
     except SOLVER_ERRORS: 
         return JSONResponse(status_code=400, content={"error": "max iterations reached"})
     return {
-        "vip_nodes": vip_nodes.tolist(),
-        "vip_scores": vip_stconv.tolist(),
+        "k_nodes": k_nodes.tolist(),
+        "k_scores": k_stconv.tolist(),
+        "vip_nodes": k_nodes.tolist(),
+        "vip_scores": k_stconv.tolist(),
         "used_eigenpairs": num_eigs, 
         "elapsed_time": perf_counter() - t0,
         "candidates_history": serialize_candidates_history(candidates_history)
@@ -344,10 +350,12 @@ async def get_sgcgauss(request: GaussSubgraphCentrality, session: dict = Depends
         "alpha": request.alpha or 0.0
     }
     t0 = perf_counter()
-    vip_nodes, vip_sgc, info, iters, allsgc = sgcengauss(network, request.fun_name or "exp", request.nnodes or 1, options)
+    k_nodes, k_sgc, info, iters, allsgc = sgcengauss(network, request.fun_name or "exp", request.nnodes or 1, options)
     return {
-        "vip_nodes": vip_nodes.tolist(), 
-        "vip_scores": vip_sgc.tolist(), 
+        "k_nodes": k_nodes.tolist(), 
+        "k_scores": k_sgc.tolist(), 
+        "vip_nodes": k_nodes.tolist(), 
+        "vip_scores": k_sgc.tolist(), 
         "convergence_gauss": "exceeded max iterations number" if info else "satisfied",
         "elapsed_time": perf_counter() - t0, 
         "matrix vector products": iters.tolist(), 
@@ -364,12 +372,14 @@ async def get_commgauss(request: GaussCommunicability, session: dict = Depends(g
     }
     try: 
         t0 = perf_counter()
-        vip_nodes, vip_comm, info, iters, allcomm = commgauss(network, request.i, request.fun_name or "exp", request.nnodes or 1, options)
+        k_nodes, k_comm, info, iters, allcomm = commgauss(network, request.i, request.fun_name or "exp", request.nnodes or 1, options)
     except ValueError as e:
         return JSONResponse(status_code=400, content={"error": str(e)})
     return {
-        "vip_nodes": vip_nodes.tolist(), 
-        "vip_scores": vip_comm.tolist(), 
+        "k_nodes": k_nodes.tolist(), 
+        "k_scores": k_comm.tolist(), 
+        "vip_nodes": k_nodes.tolist(), 
+        "vip_scores": k_comm.tolist(), 
         "convergence_gauss": "exceeded" if info else "satisfied", 
         "elapsed_time": perf_counter() - t0,
         "matrix vector products": iters.tolist(), 
@@ -387,12 +397,14 @@ async def get_stconvgauss(request: GaussSubgraphCentrality, session: dict = Depe
         "alpha": request.alpha or 0.0
     }
     t0 = perf_counter()
-    vip_nodes, vip_stconv, info, iters, allstconv = stconvgauss(network, request.fun_name or "exp", request.nnodes or 1, options)
+    k_nodes, k_stconv, info, iters, allstconv = stconvgauss(network, request.fun_name or "exp", request.nnodes or 1, options)
     return {
-        "vip_nodes": vip_nodes.tolist(), 
-        "vip_scores": vip_stconv.tolist(), 
+        "k_nodes": k_nodes.tolist(), 
+        "k_scores": k_stconv.tolist(), 
+        "vip_nodes": k_nodes.tolist(), 
+        "vip_scores": k_stconv.tolist(), 
         "convergence_gauss": "exceeded" if info else "satisfied", 
-        "elapsed_time": perf_counter() - t0,
+        "elapsed_time": perf_counter() - t0, 
         "matrix vector products": iters.tolist(), 
         "all subgraph centralities": allstconv.tolist()
     }
@@ -419,19 +431,23 @@ async def get_sgchyb(request: HybridSubgraphCentrality, session: dict = Depends(
     options = {**lr_options, **gauss_options, "alpha": request.alpha or 0.0}
     try: 
         t0 = perf_counter()
-        vip_nodes, vip_sgc, info, iters, allsgc, vip_lr, vipsgc_lr, realN_lr, S_history_lr, convergence = sgcenhyb(network, request.fun_name or "exp", request.nnodes or 1, options)
+        k_nodes, k_sgc, info, iters, allsgc, k_lr, ksgc_lr, realN_lr, S_history_lr, convergence = sgcenhyb(network, request.fun_name or "exp", request.nnodes or 1, options)
     except SOLVER_ERRORS as e: 
         return JSONResponse(status_code=400, content={"error": "max iterations reached"})
     return {
-        "vip_nodes": vip_nodes.tolist(),
-        "vip_scores": vip_sgc.tolist(),
+        "k_nodes": k_nodes.tolist(),
+        "k_scores": k_sgc.tolist(),
+        "vip_nodes": k_nodes.tolist(),
+        "vip_scores": k_sgc.tolist(),
         "convergence_gauss": "exceeded" if info else "satisfied",
         "convergence_lowrank": convergence,
         "matrix_vector_products": iters.tolist(),
         "all_subgraph_centralities": allsgc.tolist(),
         "elapsed_time": perf_counter() - t0,
-        "vip_lowrank": vip_lr.tolist(),
-        "vipsgcen_lowrank": vipsgc_lr.tolist(),
+        "k_lowrank": k_lr.tolist(),
+        "ksgcen_lowrank": ksgc_lr.tolist(),
+        "vip_lowrank": k_lr.tolist(),
+        "vipsgcen_lowrank": ksgc_lr.tolist(),
         "used_eigenpairs": int(realN_lr),
         "candidates_history": serialize_candidates_history(S_history_lr)
     }
@@ -457,19 +473,23 @@ async def get_commhyb(request: HybridCommunicability, session: dict = Depends(ge
     options = {**lr_options, **gauss_options, "alpha": request.alpha or 0.0}
     try: 
         t0 = perf_counter()
-        vip_nodes, vip_comm, info, iters, allcomm, vip_lr_local, vipcomm_lr_local, realN_lr, S_history_lr, convergence = commhyb(network, request.i, request.fun_name or "exp", request.nnodes or 1, options)
+        k_nodes, k_comm, info, iters, allcomm, k_lr_local, kcomm_lr_local, realN_lr, S_history_lr, convergence = commhyb(network, request.i, request.fun_name or "exp", request.nnodes or 1, options)
     except Exception as e: 
         return JSONResponse(status_code=400, content={"error": str(e)})
     return {
-        "vip_nodes": vip_nodes.tolist(),
-        "vip_scores": vip_comm.tolist(),
+        "k_nodes": k_nodes.tolist(),
+        "k_scores": k_comm.tolist(),
+        "vip_nodes": k_nodes.tolist(),
+        "vip_scores": k_comm.tolist(),
         "convergence_gauss": "exceeded" if info else "satisfied",
         "convergence_lowrank": convergence,
         "elapsed_time": perf_counter() - t0,
         "matrix_vector_products": iters.tolist(),
         "all_communicabilities": allcomm.tolist(),
-        "vip_lowrank": vip_lr_local.tolist(),
-        "vipcomm_lowrank": vipcomm_lr_local.tolist(),
+        "k_lowrank": k_lr_local.tolist(),
+        "kcomm_lowrank": kcomm_lr_local.tolist(),
+        "vip_lowrank": k_lr_local.tolist(),
+        "vipcomm_lowrank": kcomm_lr_local.tolist(),
         "used_eigenpairs": int(realN_lr),
         "candidates_history": serialize_candidates_history(S_history_lr)
     }
@@ -496,19 +516,23 @@ async def get_stconvhyb(request: HybridSubgraphCentrality, session: dict = Depen
     options = {**lr_options, **gauss_options, "alpha": request.alpha or 0.0}
     try: 
         t0 = perf_counter()
-        vip_nodes, vip_stconv, info, iters, allstconv, vip_lr, vipstconv_lr, realN_lr, S_history_lr, convergence = stconvhyb(network, request.fun_name or "exp", request.nnodes or 1, options)
+        k_nodes, k_stconv, info, iters, allstconv, k_lr, kstconv_lr, realN_lr, S_history_lr, convergence = stconvhyb(network, request.fun_name or "exp", request.nnodes or 1, options)
     except SOLVER_ERRORS: 
         return JSONResponse(status_code=400, content={"error": "max iterations reached"})
     return {
-        "vip_nodes": vip_nodes.tolist(),
-        "vip_scores": vip_stconv.tolist(),
+        "k_nodes": k_nodes.tolist(),
+        "k_scores": k_stconv.tolist(),
+        "vip_nodes": k_nodes.tolist(),
+        "vip_scores": k_stconv.tolist(),
         "convergence_gauss": "exceeded" if info else "satisfied",
         "convergence_lowrank": convergence,
         "elapsed_time": perf_counter() - t0,
         "matrix_vector_products": iters.tolist(),
         "all_starting_conveniences": allstconv.tolist(),
-        "vip_lowrank": vip_lr.tolist(),
-        "vipstconv_lowrank": vipstconv_lr.tolist(),
+        "k_lowrank": k_lr.tolist(),
+        "kstconv_lowrank": kstconv_lr.tolist(),
+        "vip_lowrank": k_lr.tolist(),
+        "vipstconv_lowrank": kstconv_lr.tolist(),
         "used_eigenpairs": int(realN_lr),
         "candidates_history": serialize_candidates_history(S_history_lr)
     }
@@ -525,7 +549,7 @@ async def get_degree_centrality(request: CentralityIndex, session: dict = Depend
 
     try:
         t0 = perf_counter()
-        vip_nodes, vip_centralities = cnx.compute_degree_centrality(network, request.nnodes or 1)
+        k_nodes, k_centralities = cnx.compute_degree_centrality(network, request.nnodes or 1)
     except ValueError as e:
         return JSONResponse(
             status_code=400, 
@@ -533,8 +557,10 @@ async def get_degree_centrality(request: CentralityIndex, session: dict = Depend
         )
 
     return {
-        "vip_nodes": vip_nodes.tolist(), 
-        "vip_scores": vip_centralities.tolist(), 
+        "k_nodes": k_nodes.tolist(), 
+        "k_scores": k_centralities.tolist(), 
+        "vip_nodes": k_nodes.tolist(), 
+        "vip_scores": k_centralities.tolist(), 
         "elapsed_time": perf_counter() - t0
     }
     
@@ -550,7 +576,7 @@ async def get_eigenvector_centrality(request: EigenvectorCentrality, session: di
 
     try:
         t0 = perf_counter()
-        vip_nodes, vip_centralities = cnx.compute_eigenvector_centrality(network, request.nnodes or 1, request.max_iter or 1000, request.tol or 1e-6)
+        k_nodes, k_centralities = cnx.compute_eigenvector_centrality(network, request.nnodes or 1, request.max_iter or 1000, request.tol or 1e-6)
     except PowerIterationFailedConvergence:
         return JSONResponse(
             status_code=400,
@@ -563,8 +589,10 @@ async def get_eigenvector_centrality(request: EigenvectorCentrality, session: di
         )
 
     return {
-        "vip_nodes": vip_nodes.tolist(), 
-        "vip_scores": vip_centralities.tolist(), 
+        "k_nodes": k_nodes.tolist(), 
+        "k_scores": k_centralities.tolist(), 
+        "vip_nodes": k_nodes.tolist(), 
+        "vip_scores": k_centralities.tolist(), 
         "elapsed_time": perf_counter() - t0
     }
 
@@ -582,7 +610,7 @@ async def get_katz_centrality(request: KatzCentrality, session: dict = Depends(g
 
     try:
         t0 = perf_counter()
-        vip_nodes, vip_centralities = cnx.compute_katz_centrality(network, request.nnodes or 1, request.alpha or (1/leig - 0.001), request.beta or 1, request.max_iter or 1000, request.tol or 1e-6)
+        k_nodes, k_centralities = cnx.compute_katz_centrality(network, request.nnodes or 1, request.alpha or (1/leig - 0.001), request.beta or 1, request.max_iter or 1000, request.tol or 1e-6)
     except PowerIterationFailedConvergence:
         return JSONResponse(
             status_code=400,
@@ -595,8 +623,10 @@ async def get_katz_centrality(request: KatzCentrality, session: dict = Depends(g
         )
 
     return {
-        "vip_nodes": vip_nodes.tolist(), 
-        "vip_scores": vip_centralities.tolist(), 
+        "k_nodes": k_nodes.tolist(), 
+        "k_scores": k_centralities.tolist(), 
+        "vip_nodes": k_nodes.tolist(), 
+        "vip_scores": k_centralities.tolist(), 
         "elapsed_time": perf_counter() - t0
     }
 
@@ -614,7 +644,7 @@ async def get_pagerank_centrality(request: PageRankCentrality, session: dict = D
     try:
         t0 = perf_counter()
         default_alpha_pagerank = 0.85
-        vip_nodes, vip_centralities = cnx.compute_pagerank(network, request.nnodes or 1, request.alpha or default_alpha_pagerank, request.max_iter or 1000, request.tol or 1e-6)
+        k_nodes, k_centralities = cnx.compute_pagerank(network, request.nnodes or 1, request.alpha or default_alpha_pagerank, request.max_iter or 1000, request.tol or 1e-6)
     except PowerIterationFailedConvergence:
         return JSONResponse(
             status_code=400,
@@ -627,8 +657,10 @@ async def get_pagerank_centrality(request: PageRankCentrality, session: dict = D
         )
 
     return {
-        "vip_nodes": vip_nodes.tolist(), 
-        "vip_scores": vip_centralities.tolist(), 
+        "k_nodes": k_nodes.tolist(), 
+        "k_scores": k_centralities.tolist(), 
+        "vip_nodes": k_nodes.tolist(), 
+        "vip_scores": k_centralities.tolist(), 
         "elapsed_time": perf_counter() - t0
     }
 
@@ -645,7 +677,7 @@ async def get_betweenness_centrality(request: CentralityIndex, session: dict = D
 
     try:
         t0 = perf_counter()
-        vip_nodes, vip_centralities = cnx.compute_betweenness_centrality(network, request.nnodes or 1)
+        k_nodes, k_centralities = cnx.compute_betweenness_centrality(network, request.nnodes or 1)
     except ValueError as e:
         return JSONResponse(
             status_code=400, 
@@ -653,8 +685,10 @@ async def get_betweenness_centrality(request: CentralityIndex, session: dict = D
         )
 
     return {
-        "vip_nodes": vip_nodes.tolist(), 
-        "vip_scores": vip_centralities.tolist(), 
+        "k_nodes": k_nodes.tolist(), 
+        "k_scores": k_centralities.tolist(), 
+        "vip_nodes": k_nodes.tolist(), 
+        "vip_scores": k_centralities.tolist(), 
         "elapsed_time": perf_counter() - t0
     }
 
@@ -671,7 +705,7 @@ async def get_closeness_centrality(request: CentralityIndex, session: dict = Dep
 
     try:
         t0 = perf_counter()
-        vip_nodes, vip_centralities = cnx.compute_closeness_centrality(network, request.nnodes or 1)
+        k_nodes, k_centralities = cnx.compute_closeness_centrality(network, request.nnodes or 1)
     except ValueError as e:
         return JSONResponse(
             status_code=400, 
@@ -679,8 +713,10 @@ async def get_closeness_centrality(request: CentralityIndex, session: dict = Dep
         )
 
     return {
-        "vip_nodes": vip_nodes.tolist(), 
-        "vip_scores": vip_centralities.tolist(), 
+        "k_nodes": k_nodes.tolist(), 
+        "k_scores": k_centralities.tolist(), 
+        "vip_nodes": k_nodes.tolist(), 
+        "vip_scores": k_centralities.tolist(), 
         "elapsed_time": perf_counter() - t0
     }
 

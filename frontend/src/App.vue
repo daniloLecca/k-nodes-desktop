@@ -13,7 +13,7 @@ const applyTheme = nextTheme => {
   theme.value = nextTheme
   document.documentElement.dataset.theme = nextTheme
   document.documentElement.style.colorScheme = nextTheme
-  localStorage.setItem('vipnodes-theme', nextTheme)
+  localStorage.setItem('knodes-theme', nextTheme)
 }
 
 const toggleTheme = () => {
@@ -24,7 +24,7 @@ const themeToggleLabel = computed(() => theme.value === 'dark' ? 'Light mode' : 
 
 onMounted(() => {
   // the theme is saved in localStorage
-  const savedTheme = localStorage.getItem('vipnodes-theme')
+  const savedTheme = localStorage.getItem('knodes-theme') || localStorage.getItem('vipnodes-theme')
   applyTheme(savedTheme || initialTheme)
 })
 </script>
@@ -57,7 +57,7 @@ onMounted(() => {
     <header v-if="route.path === '/overview' || route.path === '/analysis' || route.path === '/results'" class="top-nav">
       
       <div class="nav-left">
-        <RouterLink to="/"><h1 class="logo">VIPNODES</h1></RouterLink>
+        <RouterLink to="/"><h1 class="logo">K-NODES</h1></RouterLink>
       </div>
 
       <div class="nav-center">
@@ -92,8 +92,8 @@ onMounted(() => {
             Analysis
           </RouterLink>
           <RouterLink v-if="
-                (Array.isArray(computationStore.computationResult?.vip_nodes)
-                ? computationStore.computationResult.vip_nodes
+                (Array.isArray(computationStore.computationResult?.k_nodes ?? computationStore.computationResult?.vip_nodes)
+                ? (computationStore.computationResult.k_nodes ?? computationStore.computationResult.vip_nodes)
                 : []).length > 0
                 "
                 to="/results" class="toggle-tab app-link-inline" active-class="active">

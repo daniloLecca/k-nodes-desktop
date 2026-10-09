@@ -42,16 +42,17 @@ def res(T: np.ndarray, alpha: float) -> float:
 
 def opolyval(alfa: np.ndarray, beta: np.ndarray, beta0: float, x: float) -> Tuple[float, float]:
     """
-    Computes orthonormal polynomials via recurrence
+    Computes orthonormal Lanczos polynomials p_k(x) and p_{k-1}(x) via three-term recurrence.
+    Used in Gauss-Radau quadrature to evaluate the modified diagonal coefficient for the prescribed node theta.
 
     Args:
-        alfa (np.ndarray): _description_
-        beta (np.ndarray): _description_
-        beta0 (float): _description_
-        x (float): _description_
+        alfa (np.ndarray): Diagonal Lanczos coefficients [alpha_0, ..., alpha_{k-1}].
+        beta (np.ndarray): Subdiagonal Lanczos coefficients [beta_0, beta_1, ..., beta_k] (where beta_0 is the initial norm).
+        beta0 (float): Initial norm ||u||_2 used to normalize the zero-th polynomial p_0(x) = 1 / beta_0.
+        x (float): Evaluation point (typically the estimated upper bound theta on the largest eigenvalue).
 
     Returns:
-        Tuple[float, float]: _description_
+        Tuple[float, float]: (p, p1) where p is p_k(x) and p1 is p_{k-1}(x).
     """
     p1 = 1.0 / beta0
     p = (x - alfa[0]) / beta[0]
@@ -66,13 +67,25 @@ def opolyval(alfa: np.ndarray, beta: np.ndarray, beta0: float, x: float) -> Tupl
 
 def gauss_exp(A: Union[csc_matrix, np.ndarray], u: np.ndarray, theta: Optional[float] = None, opts: Optional[Dict[str, Any]] = None) -> Tuple[float, int]:
     """
-    Computes u' * expm(A) * u using Gauss quadrature.
-    
-    :param A: csc_matrix or ndarray
-    :param u: column vector
-    :param theta: estimate of the largest eigenvalue of A (if not given is computed)
-    :param opts: options dictionary
-    :return: (fval, info) - quadrature value and number of iterations
+    Computes the bilinear form u' * exp(A) * u using Gauss and Gauss-Radau quadrature rules via Lanczos iteration.
+
+    Parameters:
+        A (Union[csc_matrix, np.ndarray]): Graph adjacency matrix (sparse CSC or dense ndarray).
+        u (np.ndarray): Starting vector for the Lanczos algorithm.
+        theta (Optional[float]): Upper bound estimate of the largest eigenvalue lambda_max(A).
+            If None, computed via eigsh(A, k=1, which='LA').
+        opts (Optional[Dict[str, Any]]): Dictionary of algorithmic parameters:
+            - "gauss_tol": Stopping tolerance for quadrature convergence |gr - g| / 2 (default: 1e-3).
+            - "gausstau": Breakdown threshold for Lanczos beta coefficient (default: 1e-10).
+            - "gauss_max_iterations": Maximum Lanczos iterations allowed (default: 100).
+            - "gauss_largest_eigenvalue": Explicit spectral shift parameter mu (default: theta).
+            - "gaussreorth": Reorthogonalization method (0: none, 1: MGS, 2: CGS, 3: double CGS).
+            - "gaussmgs": Boolean, whether to use Modified Gram-Schmidt in main step (default: True).
+
+    Returns:
+        Tuple[float, int]:
+            - fval: Approximated quadrature value u' * exp(A) * u.
+            - info: Number of Lanczos iterations performed until convergence or max iterations.
     """
     # default options
     default_opts = {
@@ -250,14 +263,24 @@ def gauss_exp(A: Union[csc_matrix, np.ndarray], u: np.ndarray, theta: Optional[f
 
 def gauss_res(A: Union[csc_matrix, np.ndarray], u: np.ndarray, rho: float, alpha: float, opts: Optional[Dict[str, Any]] = None) -> Tuple[float, int]:
     """
-    Computes (A - alpha*I)^(-1) Gauss quadrature.
-    
-    :param A: csc_matrix or ndarray
-    :param u: column vector
-    :param rho: estimate of the largest eigenvalue of A (if not given is computed)
-    :param alpha: alpha for resolvent
-    :param opts: options dictionary
-    :return: (fval, info) - quadrature value and number of iterations
+    Computes the resolvent bilinear form u' * (I - alpha * A)^(-1) * u using Gauss and Gauss-Radau quadrature.
+
+    Parameters:
+        A (Union[csc_matrix, np.ndarray]): Graph adjacency matrix (sparse CSC or dense ndarray).
+        u (np.ndarray): Starting vector for the Lanczos algorithm.
+        rho (float): Upper bound estimate on the largest eigenvalue lambda_max(A) (spectral radius).
+        alpha (float): Resolvent parameter (attenuation factor), must satisfy 0 < alpha < 1 / rho.
+        opts (Optional[Dict[str, Any]]): Dictionary of algorithmic parameters:
+            - "gauss_tol": Stopping tolerance for quadrature convergence |gr - g| / 2 (default: 1e-3).
+            - "gausstau": Breakdown threshold for Lanczos beta coefficient (default: 1e-10).
+            - "gauss_max_iterations": Maximum Lanczos iterations allowed (default: 100).
+            - "gaussreorth": Reorthogonalization method (0: none, 1: MGS, 2: CGS, 3: double CGS).
+            - "gaussmgs": Boolean, whether to use Modified Gram-Schmidt in main step (default: True).
+
+    Returns:
+        Tuple[float, int]:
+            - fval: Approximated quadrature value u' * (I - alpha * A)^(-1) * u.
+            - info: Number of Lanczos iterations performed.
     """
     # default options
     default_opts = {
@@ -420,7 +443,29 @@ def sgcengauss(A: csc_matrix,
             fun_name: Literal["exp", "res"] = "exp", 
             nnodes: int = 1, 
             opts: Optional[Dict[str, Any]] = None) -> Tuple[np.ndarray, np.ndarray, bool, np.ndarray, np.ndarray]:
-    
+    """
+    Computes subgraph centrality for all nodes in the network via Gauss quadrature and extracts the top K-nodes.
+    For each node i, evaluates the bilinear form e_i' * f(A) * e_i where f is exp(A) or the resolvent (I - alpha*A)^(-1).
+
+    Parameters:
+        A (csc_matrix): Graph adjacency matrix (column sparse and symmetric).
+        fun_name (Literal["exp", "res"]): Function type: "exp" for exponential subgraph centrality,
+            "res" for resolvent subgraph centrality. Defaults to "exp".
+        nnodes (int): Number of top K-nodes to identify (defaults to 1).
+        opts (Optional[Dict[str, Any]]): Dictionary of algorithmic options:
+            - "gauss_tol": Stopping tolerance for quadrature error estimation (default: 1e-3).
+            - "gauss_max_iterations": Maximum Lanczos iterations per node (default: 200).
+            - "gauss_largest_eigenvalue": Upper bound on lambda_max(A) (default: computed via eigsh).
+            - "alpha": Resolvent parameter (required if fun_name == "res", must satisfy 0 < alpha < 1/lambda_max).
+
+    Returns:
+        Tuple[np.ndarray, np.ndarray, bool, np.ndarray, np.ndarray]:
+            - k_nodes (np.ndarray): Indices of the top K-nodes sorted by decreasing score.
+            - k_sgc (np.ndarray): Subgraph centrality scores of the top K-nodes.
+            - flag (bool): True if at least one node reached gauss_max_iterations without meeting gauss_tol.
+            - iters (np.ndarray): Number of matrix-vector products (iterations) performed for each node in the network.
+            - allsg (np.ndarray): Subgraph centrality scores computed for all nodes in the network.
+    """
     if opts is None: 
         opts = {}
 
@@ -455,12 +500,12 @@ def sgcengauss(A: csc_matrix,
     indx = np.argsort(allsg)[::-1]
     allsg = allsg[indx]
 
-    vip_nodes = indx[:nnodes]
-    vip_sgc = allsg[:nnodes]
+    k_nodes = indx[:nnodes]
+    k_sgc = allsg[:nnodes]
 
     logger.info("gauss function completed")
 
-    return vip_nodes, vip_sgc, info > 0, iters, allsg
+    return k_nodes, k_sgc, info > 0, iters, allsg
 
 
 def commgauss(A: csc_matrix, 
@@ -468,7 +513,30 @@ def commgauss(A: csc_matrix,
             fun_name: Literal["exp", "res"] = "exp", 
             nnodes: int = 1, 
             opts: Optional[Dict[str, Any]] = None) -> Tuple[np.ndarray, np.ndarray, bool, np.ndarray, np.ndarray]:
-    
+    """
+    Computes communicability between target node i and all other nodes via Gauss quadrature and polarization identity.
+    Extracts the connected component of node i for numerical stability. 
+
+    Parameters:
+        A (csc_matrix): Graph adjacency matrix (column sparse and symmetric).
+        i (int): Index of the target node (0-based) to which communicability is measured.
+        fun_name (Literal["exp", "res"]): Function type: "exp" for exponential communicability [exp(A)]_{ij},
+            "res" for resolvent communicability [(I - alpha*A)^(-1)]_{ij}. Defaults to "exp".
+        nnodes (int): Number of top K-nodes to identify with highest communicability to node i (defaults to 1).
+        opts (Optional[Dict[str, Any]]): Algorithmic options dictionary:
+            - "gauss_tol": Stopping tolerance for quadrature (default: 1e-3).
+            - "gauss_max_iterations": Maximum Lanczos iterations per node evaluation (default: 200).
+            - "gauss_largest_eigenvalue": Upper bound on lambda_max of the connected component (default: computed via eigsh).
+            - "alpha": Resolvent parameter (required if fun_name == "res", must satisfy 0 < alpha < 1/lambda_max).
+
+    Returns:
+        Tuple[np.ndarray, np.ndarray, bool, np.ndarray, np.ndarray]:
+            - k_nodes (np.ndarray): Indices of the top K-nodes (in original network indices) sorted by decreasing communicability with node i.
+            - k_comm (np.ndarray): Communicability scores of the top K-nodes.
+            - flag (bool): True if at least one evaluation reached gauss_max_iterations.
+            - iters_original (np.ndarray): Number of matrix-vector products performed for each node in the network (0 for nodes outside the component).
+            - allcomm_original (np.ndarray): Communicability values to node i for all nodes in the network.
+    """
     if i < 0 or i >= A.shape[0]:
         raise ValueError(f"node {i} not found, must be in the range [0, {A.shape[0]})") 
     
@@ -535,11 +603,11 @@ def commgauss(A: csc_matrix,
     indx_local = np.argsort(allcomm_local)[::-1]
     allcomm_sorted = allcomm_local[indx_local]
 
-    vip_local_indices = indx_local[:nnodes]
-    vip_comm = allcomm_sorted[:nnodes]
+    k_local_indices = indx_local[:nnodes]
+    k_comm = allcomm_sorted[:nnodes]
 
     # mapping to original matrix
-    vip_nodes = original_indices[vip_local_indices]
+    k_nodes = original_indices[k_local_indices]
     allcomm_original = np.zeros(A.shape[0])
     allcomm_original[original_indices] = allcomm_local
     iters_original = np.zeros(A.shape[0])
@@ -547,14 +615,36 @@ def commgauss(A: csc_matrix,
 
     logger.info("commgauss function completed")
 
-    return vip_nodes, vip_comm, info > 0, iters_original, allcomm_original  
+    return k_nodes, k_comm, info > 0, iters_original, allcomm_original  
 
 
 def stconvgauss(A: csc_matrix, 
             fun_name: Literal["exp", "res"] = "exp", 
             nnodes: int = 1, 
             opts: Optional[Dict[str, Any]] = None) -> Tuple[np.ndarray, np.ndarray, bool, np.ndarray, np.ndarray]:
-    
+    """
+    Computes starting convenience for all nodes in the network via Gauss quadrature and extracts the top K-nodes.
+    Starting convenience represents total communicability from node i to the entire network: e_i' * f(A) * 1.
+
+    Parameters:
+        A (csc_matrix): Graph adjacency matrix (column sparse and symmetric).
+        fun_name (Literal["exp", "res"]): Function type: "exp" for exponential starting convenience,
+            "res" for resolvent starting convenience. Defaults to "exp".
+        nnodes (int): Number of top K-nodes to identify (defaults to 1).
+        opts (Optional[Dict[str, Any]]): Algorithmic options dictionary:
+            - "gauss_tol": Stopping tolerance for quadrature (default: 1e-3).
+            - "gauss_max_iterations": Maximum Lanczos iterations per node (default: 200).
+            - "gauss_largest_eigenvalue": Upper bound on lambda_max(A) (default: computed via eigsh).
+            - "alpha": Resolvent parameter (required if fun_name == "res", must satisfy 0 < alpha < 1/lambda_max).
+
+    Returns:
+        Tuple[np.ndarray, np.ndarray, bool, np.ndarray, np.ndarray]:
+            - k_nodes (np.ndarray): Indices of the top K-nodes sorted by decreasing starting convenience.
+            - k_stconv (np.ndarray): Starting convenience scores of the top K-nodes.
+            - flag (bool): True if at least one evaluation reached gauss_max_iterations.
+            - iters (np.ndarray): Number of matrix-vector products performed for each node in the network.
+            - allstconv (np.ndarray): Starting convenience scores computed for all nodes in the network.
+    """
     if opts is None: 
         opts = {}
 
@@ -607,9 +697,9 @@ def stconvgauss(A: csc_matrix,
     indx = np.argsort(allstconv)[::-1]
     allstconv = allstconv[indx]
 
-    vip_nodes = indx[:nnodes]
-    vip_stconv = allstconv[:nnodes]
+    k_nodes = indx[:nnodes]
+    k_stconv = allstconv[:nnodes]
 
     logger.info("gauss function completed")
 
-    return vip_nodes, vip_stconv, info > 0, iters, allstconv
+    return k_nodes, k_stconv, info > 0, iters, allstconv

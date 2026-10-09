@@ -15,36 +15,45 @@ def sgcenlr(A: csc_matrix,
             nnodes: int = 1, 
             opts: Optional[Dict[str, Any]] = None) -> Tuple[np.ndarray, np.ndarray, int, list]:
     """
-    Determine the VIP nodes of an undirected, unweighted complex network depending on the subgraph-centrality of each node,
-    via low-rank approximation of the adjacency matrix.
-    
+    Identifies the top K-nodes of a complex network based on subgraph centrality via low-rank approximation.
+    Computes eigenpairs incrementally in batches using PRIMME (IRBLEIGS equivalent), maintaining lower and upper bounds
+    for each candidate node. At each iteration, nodes whose upper bound falls below the k-th highest lower bound are pruned.
+
     Parameters:
     ----------
     A : csc_matrix
-        adjacency matrix (column sparse and symmetric)
-    fun_name : str
-        'exp' for exponential, 'res' for resolvent
+        Adjacency matrix of the network (column sparse, symmetric, and unweighted).
+    fun_name : Literal["exp", "res"]
+        Matrix function: 'exp' for exponential subgraph centrality [exp(A)]_{ii},
+        'res' for resolvent subgraph centrality [(I - alpha*A)^(-1)]_{ii}. Defaults to 'exp'.
     nnodes : int
-        number of VIP nodes
+        Number of top K-nodes to identify (k).
     opts : dict, optional
-        options both for algorithm and for PRIMME (irbleigs in MATLAB) (lr_max_iterations, toll, ecc.).
-        
+        Dictionary of algorithm and PRIMME solver parameters:
+        - 'lr_max_iterations' (int): Maximum iterations for the outer low-rank loop (default: 300).
+        - 'lr_max_eigenvectors' (int): Maximum number of eigenvectors allowed in memory (default: 200).
+        - 'lr_approximation_tol' (float): Tolerance for lower-bound stagnation exit condition (default: 1e-1).
+        - 'lr_weak_convergence_tol' (float): Relative tolerance for detecting weak convergence (default: 0).
+        - 'lr_min_additional_nodes' (int): Minimum number of additional nodes retained under weak convergence (default: 5).
+        - 'lr_max_additional_nodes' (int): Maximum number of additional nodes retained under weak convergence (default: 100).
+        - 'lr_shift' (bool): Whether to apply spectral shift mu = lambda_max for the exponential function (default: True).
+        - 'alpha' (float): Resolvent attenuation factor (must be in (0, 1/lambda_max); default: 0.0).
+        - 'lr_primme_batch_size' (int): Number of eigenpairs computed per PRIMME batch (default: 20).
+        - 'lr_primme_tol' (float): Residual tolerance for PRIMME eigensolver (default: 1e-5).
+        - 'lr_primme_max_iterations' (int): Maximum iterations for PRIMME solver (default: 5000).
+        - 'lr_return_S' (bool): Whether to record and return candidate bounds history (default: False).
+
     Returns:
     -------
-    vip : np.ndarray
-        vector of the VIP nodes (each element corresponds to the index)
-
-    vipsgc : np.ndarray
-        vector of the approximated subgraph centralities matching the element in vip array
-        vip[i] |-> vipsgc[i]
-    
+    k_nodes : np.ndarray
+        Array containing the indices of the identified top K-nodes, ordered by descending score.
+    ksgc : np.ndarray
+        Array of approximated subgraph centrality scores corresponding to k_nodes.
     realN : int
-        number of used eigenpairs
-
+        Total number of eigenpairs computed and used during the approximation.
     S_history : list
-        history of the candidate nodes for each iteration.
-        Each element is a tuple:
-        (candidate_nodes, candidate_lower_bounds, candidate_upper_bounds, eigenvalue_used)
+        History of candidate bounds recorded at each iteration. Each element is a tuple:
+        (candidate_nodes, candidate_lower_bounds, candidate_upper_bounds, eigenvalue_used).
     """
     if opts is None:
         opts = {}
@@ -208,8 +217,8 @@ def sgcenlr(A: csc_matrix,
     if flag:
         # no convergence
         logger.info("no convergence")
-        warnings.warn("too few eigenvalues to compute VIP nodes successfully.")
-        nvip = len(lis)
+        warnings.warn("too few eigenvalues to compute K-nodes successfully.")
+        nk = len(lis)
     else:
         if len(lis) > nnodes: 
             # weak convergence
@@ -222,16 +231,16 @@ def sgcenlr(A: csc_matrix,
             # strong convergence
             incr = 0 
 
-        nvip = nnodes + incr # number of VIP nodes = number of VIP nodes searched + incremental VIP nodes  
+        nk = nnodes + incr # number of K-nodes = number of K-nodes searched + incremental K-nodes  
 
-    vip = indx[:nvip] # extract VIP nodes 
-    vipsgc = Ls[:nvip] # extract subgraph centrality of VIP nodes
+    k_nodes = indx[:nk] # extract K-nodes 
+    ksgc = Ls[:nk] # extract subgraph centrality of K-nodes
 
     # shift back 
     if fun_name == 'exp' and np.isfinite(np.exp(mu)):
-        vipsgc = np.exp(mu) * vipsgc
+        ksgc = np.exp(mu) * ksgc
 
-    return vip, vipsgc, realN, S_history
+    return k_nodes, ksgc, realN, S_history
 
 
 
@@ -241,38 +250,48 @@ def commlr(A: csc_matrix,
             nnodes: int = 1, 
             opts: Optional[Dict[str, Any]] = None) -> Tuple[np.ndarray, np.ndarray, int, list]:
     """
-    Determine the VIP nodes of an undirected, unweighted complex network depending on the communicability of each node with the node i,
-    via low-rank approximation of the adjacency matrix.
-    
+    Identifies the top K-nodes most communicable with target node i via low-rank approximation.
+    Extracts the connected component containing node i, computes eigenpairs incrementally using PRIMME,
+    maintains Cauchy-Schwarz based lower and upper bounds for communicability F(j) = [f(A)]_{ij}, prunes non-candidate
+    nodes, and maps the resulting indices back to the original network.
+
     Parameters:
     ----------
     A : csc_matrix
-        adjacency matrix (column sparse and symmetric)
+        Adjacency matrix of the network (column sparse, symmetric, and unweighted).
     i : int
-        node to which the communicability is referred
-    fun_name : str
-        'exp' for exponential, 'res' for resolvent
+        Index of the target node (0-based) to which communicability is evaluated.
+    fun_name : Literal["exp", "res"]
+        Matrix function: 'exp' for exponential communicability [exp(A)]_{ij},
+        'res' for resolvent communicability [(I - alpha*A)^(-1)]_{ij}. Defaults to 'exp'.
     nnodes : int
-        number of VIP nodes
+        Number of top K-nodes to identify with highest communicability to node i.
     opts : dict, optional
-        options both for algorithm and for PRIMME (irbleigs in MATLAB) (lr_max_iterations, toll, ecc.).
-        
+        Dictionary of algorithm and PRIMME solver parameters:
+        - 'lr_max_iterations' (int): Maximum iterations for the outer low-rank loop (default: 300).
+        - 'lr_max_eigenvectors' (int): Maximum number of eigenvectors allowed in memory (default: 200).
+        - 'lr_approximation_tol' (float): Tolerance for lower-bound stagnation exit condition (default: 1e-3).
+        - 'lr_weak_convergence_tol' (float): Relative tolerance for detecting weak convergence (default: 1e-1).
+        - 'lr_min_additional_nodes' (int): Minimum additional nodes retained under weak convergence (default: 1).
+        - 'lr_max_additional_nodes' (int): Maximum additional nodes retained under weak convergence (default: 100).
+        - 'lr_shift' (bool): Whether to apply spectral shift mu = lambda_max for the exponential function (default: True).
+        - 'alpha' (float): Resolvent attenuation factor (must be in (0, 1/lambda_max); default: 0.0).
+        - 'lr_primme_batch_size' (int): Number of eigenpairs computed per PRIMME batch (default: 20).
+        - 'lr_primme_tol' (float): Residual tolerance for PRIMME eigensolver (default: 1e-5).
+        - 'lr_primme_max_iterations' (int): Maximum iterations for PRIMME solver (default: 5000).
+        - 'lr_return_S' (bool): Whether to record and return candidate bounds history (default: False).
+
     Returns:
     -------
-    vip : np.ndarray
-        vector of the VIP nodes (each element corresponds to the index in the ORIGINAL network)
-
-    vipsgc : np.ndarray
-        vector of the approximated subgraph centralities matching the element in vip array
-        vip[j] |-> vipsgc[j]
-    
+    k_nodes : np.ndarray
+        Array containing the indices of the identified top K-nodes in the ORIGINAL network, ordered by descending communicability with node i.
+    kcomm : np.ndarray
+        Array of approximated communicability scores corresponding to k_nodes.
     realN : int
-        number of used eigenpairs
-
+        Total number of eigenpairs computed and used during the approximation.
     S_history : list
-        history of the candidate nodes for each iteration.
-        Each element is a tuple:
-        (candidate_nodes_original, candidate_lower_bounds, candidate_upper_bounds, eigenvalue_used)
+        History of candidate bounds recorded at each iteration. Each element is a tuple:
+        (candidate_nodes_original, candidate_lower_bounds, candidate_upper_bounds, eigenvalue_used).
     """
 
     if i < 0 or i >= A.shape[0]:
@@ -438,9 +457,9 @@ def commlr(A: csc_matrix,
     logger.info(f"Loop completed: realN={realN}, flag={flag}, converged={not flag}")
     
     if flag:
-        nvip = len(lis_local)
-        logger.info("Too few eigenvalues to compute VIP nodes successfully. Try increasing the batch size")
-        logger.info(f"selected {nvip} number of VIP nodes")
+        nk = len(lis_local)
+        logger.info("Too few eigenvalues to compute K-nodes successfully. Try increasing the batch size")
+        logger.info(f"selected {nk} number of K-nodes")
     else:
         if len(lis_local) > nnodes: 
             ivec = np.where((Fmax - Fs[nnodes:]) < (lr_weak_convergence_tol * Fmax))[0]
@@ -451,24 +470,24 @@ def commlr(A: csc_matrix,
             logger.info("Strong convergence, no additional node is needed")
             incr = 0 
 
-        nvip = nnodes + incr   
+        nk = nnodes + incr   
 
     # extracting local results (referring to the submatrix)
-    vip_local = indx[:nvip] 
-    vipsgc = Fs[:nvip] 
+    k_local = indx[:nk] 
+    kcomm = Fs[:nk] 
 
     if fun_name == 'exp' and np.isfinite(np.exp(mu)):
-        vipsgc = np.exp(mu) * vipsgc
+        kcomm = np.exp(mu) * kcomm
 
     # mapping to original matrix
-    vip_original = original_indices[vip_local]
+    k_original = original_indices[k_local]
     S_history_original = [
         (original_indices[candidate_nodes], candidate_lower_bounds, candidate_upper_bounds, eigenvalue_used)
         for candidate_nodes, candidate_lower_bounds, candidate_upper_bounds, eigenvalue_used in S_history_local
     ] if lr_return_S else []
     # ------------------------------------------------------
 
-    return vip_original, vipsgc, realN, S_history_original
+    return k_original, kcomm, realN, S_history_original
 
 
 def stconvlr(A: csc_matrix, 
@@ -476,36 +495,47 @@ def stconvlr(A: csc_matrix,
             nnodes: int = 1, 
             opts: Optional[Dict[str, Any]] = None) -> Tuple[np.ndarray, np.ndarray, int, list]:
     """
-    Determine the VIP nodes of an undirected, unweighted complex network depending on the starting convenience of each node,
-    via low-rank approximation of the adjacency matrix.
-    
-    Paramaters:
+    Identifies the top K-nodes of a complex network based on starting convenience via low-rank approximation.
+    Starting convenience measures the overall communicability of a node to all other nodes in the network:
+    F(i) = sum_j [f(A)]_{ij} = e_i' * f(A) * 1.
+    Computes eigenpairs incrementally in batches using PRIMME, maintains lower and upper bounds for each node,
+    and prunes non-candidate nodes until convergence.
+
+    Parameters:
     ----------
     A : csc_matrix
-        adjacency matrix (column sparse and symmetric)
-    fun_name : str
-        'exp' for exponential, 'res' for resolvent
+        Adjacency matrix of the network (column sparse, symmetric, and unweighted).
+    fun_name : Literal["exp", "res"]
+        Matrix function: 'exp' for exponential starting convenience [exp(A)]_{ij},
+        'res' for resolvent starting convenience [(I - alpha*A)^(-1)]_{ij}. Defaults to 'exp'.
     nnodes : int
-        number of VIP nodes
+        Number of top K-nodes to identify (k).
     opts : dict, optional
-        options both for algorithm and for PRIMME (irbleigs in MATLAB) (lr_max_iterations, toll, ecc.).
-        
+        Dictionary of algorithm and PRIMME solver parameters:
+        - 'lr_max_iterations' (int): Maximum iterations for the outer low-rank loop (default: 300).
+        - 'lr_max_eigenvectors' (int): Maximum number of eigenvectors allowed in memory (default: 200).
+        - 'lr_approximation_tol' (float): Tolerance for lower-bound stagnation exit condition (default: 0.0).
+        - 'lr_weak_convergence_tol' (float): Relative tolerance for detecting weak convergence (default: 1e-1).
+        - 'lr_min_additional_nodes' (int): Minimum additional nodes retained under weak convergence (default: 1).
+        - 'lr_max_additional_nodes' (int): Maximum additional nodes retained under weak convergence (default: 100).
+        - 'lr_shift' (bool): Whether to apply spectral shift mu = lambda_max for the exponential function (default: True).
+        - 'alpha' (float): Resolvent attenuation factor (must be in (0, 1/lambda_max); default: 0.0).
+        - 'lr_primme_batch_size' (int): Number of eigenpairs computed per PRIMME batch (default: 20).
+        - 'lr_primme_tol' (float): Residual tolerance for PRIMME eigensolver (default: 1e-5).
+        - 'lr_primme_max_iterations' (int): Maximum iterations for PRIMME solver (default: 5000).
+        - 'lr_return_S' (bool): Whether to record and return candidate bounds history (default: False).
+
     Returns:
     -------
-    vip : np.ndarray
-        vector of the VIP nodes (each element corresponds to the index)
-
-    vipsgc : np.ndarray
-        vector of the approximated starting convenience matching the element in vip array
-        vip[i] |-> vipsgc[i]
-    
+    k_nodes : np.ndarray
+        Array containing the indices of the identified top K-nodes, ordered by descending starting convenience score.
+    kstconv : np.ndarray
+        Array of approximated starting convenience scores corresponding to k_nodes.
     realN : int
-        number of used eigenpairs
-
+        Total number of eigenpairs computed and used during the approximation.
     S_history : list
-        history of the candidate nodes for each iteration.
-        Each element is a tuple:
-        (candidate_nodes, candidate_lower_bounds, candidate_upper_bounds, eigenvalue_used)
+        History of candidate bounds recorded at each iteration. Each element is a tuple:
+        (candidate_nodes, candidate_lower_bounds, candidate_upper_bounds, eigenvalue_used).
     """
     
 
@@ -673,8 +703,8 @@ def stconvlr(A: csc_matrix,
     # check convergence
     if flag:
         # no convergence
-        warnings.warn("too few eigenvalues to compute VIP nodes successfully.")
-        nvip = len(lis)
+        warnings.warn("too few eigenvalues to compute K-nodes successfully.")
+        nk = len(lis)
     else:
         if len(lis) > nnodes: 
             # weak convergence
@@ -687,15 +717,15 @@ def stconvlr(A: csc_matrix,
             # strong convergence
             incr = 0 
 
-        nvip = nnodes + incr # number of VIP nodes = number of VIP nodes searched + incremental VIP nodes  
+        nk = nnodes + incr # number of K-nodes = number of K-nodes searched + incremental K-nodes  
 
-    vip = indx[:nvip] # extract VIP nodes 
-    vipsgc = Fs[:nvip] # extract subgraph centrality of VIP nodes
+    k_nodes = indx[:nk] # extract K-nodes 
+    kstconv = Fs[:nk] # extract starting convenience of K-nodes
 
     # shift back 
     if fun_name == 'exp' and np.isfinite(np.exp(mu)):
-        vipsgc = np.exp(mu) * vipsgc
+        kstconv = np.exp(mu) * kstconv
 
-    return vip, vipsgc, realN,  S_history
+    return k_nodes, kstconv, realN,  S_history
 
 

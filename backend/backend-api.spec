@@ -46,7 +46,7 @@ for pkg in packages:
         binaries += b
         hiddenimports += h
     except Exception as e:
-        pass
+        print(f"[backend-api.spec] Warning: Retrieving '{pkg}' was not possible: {e}")
 
 hiddenimports += collect_submodules('uvicorn')
 

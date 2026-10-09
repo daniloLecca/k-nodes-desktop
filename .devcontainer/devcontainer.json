@@ -1,5 +1,5 @@
 {
-  "name": "Vipnodes",
+  "name": "K-Nodes",
   "dockerComposeFile": "../docker-compose.yml",
   "service": "backend", 
   "workspaceFolder": "/workspace",

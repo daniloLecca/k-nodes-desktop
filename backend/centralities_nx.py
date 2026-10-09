@@ -29,10 +29,10 @@ def _extract_top_nodes(centralities: dict, nnodes: int) -> Tuple[np.ndarray, np.
     sorted_order = np.argsort(values)[::-1]
     top_indices = sorted_order[:nnodes]
 
-    vip_nodes = nodes[top_indices]
-    vip_centralities = values[top_indices]
+    k_nodes = nodes[top_indices]
+    k_centralities = values[top_indices]
 
-    return vip_nodes, vip_centralities
+    return k_nodes, k_centralities
 
 
 def compute_degree_centrality(network: csc_matrix, nnodes: int) -> Tuple[np.ndarray, np.ndarray]:

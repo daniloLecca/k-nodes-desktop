@@ -176,8 +176,8 @@
         <RouterLink 
             style="border: 1px solid var(--color-border); border-radius: 1rem; padding: 1rem;"
             v-if="
-                (Array.isArray(computationStore.computationResult?.vip_nodes)
-                ? computationStore.computationResult.vip_nodes
+                (Array.isArray(computationStore.computationResult?.k_nodes ?? computationStore.computationResult?.vip_nodes)
+                ? (computationStore.computationResult.k_nodes ?? computationStore.computationResult.vip_nodes)
                 : []).length > 0
                 " to="/results" class="app-link-inline">
                 <svg class="button-icon" viewBox="0 0 24 24" aria-hidden="true" stroke="currentColor">

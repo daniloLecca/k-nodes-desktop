@@ -42,7 +42,7 @@ function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1280,
     height: 800,
-    icon: path.join(__dirname, 'public', process.platform === 'win32' ? 'vipnodes-logo.ico' : 'vipnodes-logo.png'),
+    icon: path.join(__dirname, 'public', process.platform === 'win32' ? 'knodes-logo.ico' : 'knodes-logo.png'),
     webPreferences: {
       nodeIntegration: true,
       contextIsolation: false

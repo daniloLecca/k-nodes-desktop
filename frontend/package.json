@@ -1,11 +1,11 @@
 {
-  "name": "vipnodes",
+  "name": "k-nodes",
   "version": "1.0.0",
-  "description": "VIPNODES Desktop",
+  "description": "K-NODES Desktop",
   "author": "Danilo Lecca",
   "repository": {
     "type": "git",
-    "url": "https://github.com/daniloLecca/vipnodes-desktop.git"
+    "url": "https://github.com/daniloLecca/k-nodes-desktop.git"
   },
   "private": true,
   "type": "module",
@@ -21,8 +21,8 @@
     "electron:build:mac": "vite build && electron-builder --mac --publish never"
   },
   "build": {
-    "appId": "com.vipnodes.desktop",
-    "productName": "VIPNODES",
+    "appId": "com.knodes.desktop",
+    "productName": "K-NODES",
     "directories": {
       "output": "release"
     },
@@ -42,15 +42,15 @@
     ],
     "win": {
       "target": "nsis",
-      "icon": "public/vipnodes-logo.ico"
+      "icon": "public/knodes-logo.ico"
     },
     "linux": {
       "target": "AppImage",
-      "icon": "public/vipnodes-logo.png"
+      "icon": "public/knodes-logo.png"
     },
     "mac": {
       "target": "dmg",
-      "icon": "public/vipnodes-logo.png"
+      "icon": "public/knodes-logo.png"
     }
   },
   "dependencies": {

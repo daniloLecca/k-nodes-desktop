@@ -18,26 +18,45 @@ def sgcenhyb(A: csc_matrix,
                 np.ndarray, np.ndarray, bool, np.ndarray, np.ndarray, np.ndarray, np.ndarray, int, list, 
                 Literal['no convergence', 'strong convergence', 'weak convergence']]:
     """
-    Subgraph centrality computation via hybrid algorithm. First a low rank approximation is computed, 
-    to retrieve a reduced list of candidate nodes, then a more accurate computation of the
-    subgraph centrality is performed on the remaining nodes. 
+    Computes subgraph centrality via a two-stage hybrid algorithm and identifies the top K-nodes.
+    Stage 1: Computes a low-rank approximation (PRIMME) to prune the network down to a candidate set of nodes (k_lr).
+    Stage 2: Runs high-precision Gauss quadrature only on the candidate nodes to compute their exact subgraph centrality,
+    then sorts them to identify the final top K-nodes.
 
-    :param A: adjacency matrix
-    :param fun_name: function name, must be either "exp" (exponential) or "res" (resolvent)
-    :param nnodes: number of vip nodes seeked
+    Parameters:
+    ----------
+    A : csc_matrix
+        Adjacency matrix of the network (column sparse, symmetric, and unweighted).
+    fun_name : Literal["exp", "res"]
+        Matrix function: 'exp' for exponential subgraph centrality [exp(A)]_{ii},
+        'res' for resolvent subgraph centrality [(I - alpha*A)^(-1)]_{ii}. Defaults to 'exp'.
+    nnodes : int
+        Number of final top K-nodes to identify.
+    opts : Optional[Dict[str, Any]]
+        Merged dictionary of options for both low-rank and Gauss quadrature stages:
+        - 'lr_nnodes' (int): Number of candidate nodes sought during low-rank filtering (typically larger than nnodes).
+        - 'gauss_tol' (float): Tolerance for Gauss quadrature convergence (default: 1e-3).
+        - 'gauss_max_iterations' (int): Maximum Lanczos iterations per candidate node in Gauss stage (default: 200).
+        - 'gauss_largest_eigenvalue' (float): Upper bound on lambda_max(A) (default: computed via eigsh).
+        - 'alpha' (float): Resolvent attenuation factor (required if fun_name == 'res').
+        - Low-rank options passed to sgcenlr ('lr_max_iterations', 'lr_approximation_tol', 'lr_primme_batch_size', etc.).
 
-    :return vip_nodes: vip nodes seeked
-    :return vip_sgc: corresponding subgraph centralities of the vip nodes
-    :return convergence: "exceeded max iterations number" if info > 0, "satisfied" otherwise (referring to Gauss quadrature)
-    :return iters: number of matrix-vector products performed by the Gauss quadrature 
-    :return vip_lr: vip nodes yielded by the low rank approximation
-    :return vipsgc_lr: corresponding subgraph centralities for the vip nodes yielded by the low rank approximation
-    :return realN_lr: number of used eigenpairs during the low rank approximation
-    :return S_history_lr: log of the candidate nodes throughout the low rank approximation
-    :return low_rank_convergence: 
-        "no convergence" if the number of selected nodes by the low rank approximation equals the number of nodes of the network
-        "weak convergence" if the number of selected nodes by the low rank approximation is smaller than the number of nodes of the network
-        "strong convergence" if the number of selected nodes by the low rank approximation equals the number of seeked nodes
+    Returns:
+    -------
+    Tuple[np.ndarray, np.ndarray, bool, np.ndarray, np.ndarray, np.ndarray, np.ndarray, int, list, Literal['no convergence', 'strong convergence', 'weak convergence']]:
+        - k_nodes (np.ndarray): Indices of the top K-nodes identified after Gauss quadrature, sorted in descending order of score.
+        - k_sgc (np.ndarray): Subgraph centrality scores of the final top K-nodes.
+        - flag (bool): True if Gauss quadrature reached gauss_max_iterations on any evaluated candidate node.
+        - iters (np.ndarray): Number of matrix-vector products performed by Gauss quadrature for each evaluated candidate node.
+        - allsg (np.ndarray): Subgraph centrality scores computed via Gauss quadrature for all candidate nodes in k_lr.
+        - k_lr (np.ndarray): Indices of candidate nodes selected by the first-stage low-rank approximation.
+        - ksgc_lr (np.ndarray): Subgraph centrality scores estimated by the low-rank approximation for k_lr.
+        - realN_lr (int): Number of eigenpairs used during the low-rank approximation stage.
+        - S_history_lr (list): Candidate bounds history log throughout the low-rank approximation.
+        - low_rank_convergence (str): Convergence outcome of the low-rank stage:
+            'strong convergence' if exactly lr_nnodes were retained,
+            'weak convergence' if additional nodes were retained,
+            'no convergence' if all nodes in the network were retained.
     """
     if opts is None: 
         opts = {}
@@ -49,9 +68,9 @@ def sgcenhyb(A: csc_matrix,
 
     n = A.shape[0]
 
-    vip_lr, vipsgc_lr, realN_lr, S_history_lr = sgcenlr(A, fun_name=fun_name, nnodes=opts["lr_nnodes"], opts=opts)
+    k_lr, ksgc_lr, realN_lr, S_history_lr = sgcenlr(A, fun_name=fun_name, nnodes=opts["lr_nnodes"], opts=opts)
 
-    low_rank_size = vip_lr.shape[0]
+    low_rank_size = k_lr.shape[0]
     allsg = np.zeros(low_rank_size)
     iters = np.zeros(low_rank_size)
     ei = np.zeros(n)
@@ -63,10 +82,10 @@ def sgcenhyb(A: csc_matrix,
         raise ValueError(f"alpha must be in (0, {1/theta:.6f}), got {alpha}")
 
     for i in range(low_rank_size):
-        ei[vip_lr[i]] = 1
+        ei[k_lr[i]] = 1
         t0 = perf_counter()
         allsg[i], iters[i] = gauss_exp(A, ei, theta, opts) if fun_name == "exp" else gauss_res(A, ei, theta, alpha, opts)
-        ei[vip_lr[i]] = 0
+        ei[k_lr[i]] = 0
         info += 1 if iters[i] >= gauss_max_iterations else 0
         logger.info(f"matrix-vector products, maxn, node, elapsed time: {iters[i]}, {gauss_max_iterations}, {i}, {perf_counter() - t0:.4f}")
         
@@ -74,8 +93,8 @@ def sgcenhyb(A: csc_matrix,
     indx = np.argsort(allsg)[::-1]
     allsg = allsg[indx]
 
-    vip_nodes = vip_lr[indx[:nnodes]]
-    vip_sgc = allsg[:nnodes]
+    k_nodes = k_lr[indx[:nnodes]]
+    k_sgc = allsg[:nnodes]
 
     if low_rank_size == n:
         low_rank_convergence = "no convergence"
@@ -84,7 +103,7 @@ def sgcenhyb(A: csc_matrix,
     else:
         low_rank_convergence = "weak convergence"
 
-    return vip_nodes, vip_sgc, info > 0, iters, allsg, vip_lr, vipsgc_lr, realN_lr, S_history_lr, low_rank_convergence
+    return k_nodes, k_sgc, info > 0, iters, allsg, k_lr, ksgc_lr, realN_lr, S_history_lr, low_rank_convergence
 
 def commhyb(A: csc_matrix, 
             i: int,
@@ -94,30 +113,48 @@ def commhyb(A: csc_matrix,
                 np.ndarray, np.ndarray, bool, np.ndarray, np.ndarray, np.ndarray, np.ndarray, int, list, 
                 Literal['no convergence', 'strong convergence', 'weak convergence']]:
     """
-    Communicability computation via hybrid algorithm. First a low rank approximation is computed, 
-    to retrieve a reduced list of candidate nodes, then a more accurate computation of the
-    communicability is performed on the remaining nodes using Gauss quadrature. 
-    For numerical stability and performance, only the communicabilities of the nodes that belong in the same connected component as 
-    the node "i" are computed.
+    Computes node communicability from a source node i via a two-stage hybrid algorithm and identifies the top K-nodes.
+    Stage 1: Extracts the connected component of node i (since nodes outside have 0 communicability), then computes
+             a low-rank approximation (PRIMME) on the component to prune candidates down to a set k_lr.
+    Stage 2: Runs high-precision Gauss-Radau quadrature on the selected candidate nodes using the polarization identity
+             to evaluate bilinear forms e_i^T f(A) e_j, sorts them, and extracts the top K-nodes.
 
-    :param A: adjacency matrix
-    :param fun_name: function name, must be either "exp" (exponential) or "res" (resolvent)
-    :param nnodes: number of vip nodes seeked
+    Parameters:
+    ----------
+    A : csc_matrix
+        Adjacency matrix of the network (column sparse, symmetric, and unweighted).
+    i : int
+        Index (0-based) of the source node from which communicability is measured.
+    fun_name : Literal["exp", "res"]
+        Matrix function: 'exp' for exponential communicability [exp(A)]_{ij},
+        'res' for resolvent communicability [(I - alpha*A)^(-1)]_{ij}. Defaults to 'exp'.
+    nnodes : int
+        Number of final top K-nodes to identify.
+    opts : Optional[Dict[str, Any]]
+        Merged configuration dictionary for low-rank and Gauss quadrature stages:
+        - 'lr_nnodes' (int): Candidate pool size sought during the low-rank stage (commlr).
+        - 'gauss_tol' (float): Convergence tolerance for Gauss-Radau quadrature (default: 1e-3).
+        - 'gauss_max_iterations' (int): Maximum Lanczos iterations per polarization vector in Gauss stage (default: 200).
+        - 'gauss_largest_eigenvalue' (float): Upper bound on lambda_max(A_sub) (default: computed via eigsh on component).
+        - 'alpha' (float): Resolvent attenuation factor in (0, 1/lambda_max) (required if fun_name == 'res').
+        - Low-rank options passed to commlr ('lr_max_iterations', 'lr_approximation_tol', 'lr_primme_batch_size', etc.).
 
-    :return vip_nodes: vip nodes seeked
-    :return vip_comm: corresponding communicabilities of the vip nodes
-    :return convergence: "exceeded max iterations number" if info > 0, "satisfied" otherwise (referring to Gauss quadrature)
-    :return iters_full: number of matrix-vector products performed by the Gauss quadrature 
-    :return allcomm_full: all communicabilities of the connected component of i
-    :return vip_lr: vip nodes yielded by the low rank approximation
-    :return vipcomm_lr: corresponding communicabilites for the vip nodes yielded by the low rank approximation
-    :return realN_lr: number of used eigenpairs during the low rank approximation
-    :return S_history_lr: log of the candidate nodes throughout the low rank approximation
-    :return low_rank_convergence: 
-        "no convergence" if the number of selected nodes by the low rank approximation equals the number of nodes of the network
-        "weak convergence" if the number of selected nodes by the low rank approximation is smaller than the number of nodes of the network
-        "strong convergence" if the number of selected nodes by the low rank approximation equals the number of seeked nodes
-    
+    Returns:
+    -------
+    Tuple[np.ndarray, np.ndarray, bool, np.ndarray, np.ndarray, np.ndarray, np.ndarray, int, list, Literal['no convergence', 'strong convergence', 'weak convergence']]:
+        - k_nodes (np.ndarray): Indices of the top K-nodes with highest communicability to node i, sorted in descending order.
+        - k_comm (np.ndarray): Communicability values [f(A)]_{ij} for the top K-nodes.
+        - flag (bool): True if Gauss quadrature reached gauss_max_iterations on any evaluated node.
+        - iters_full (np.ndarray): Array of length n containing matrix-vector products performed by Gauss quadrature (nonzero at k_lr).
+        - allcomm_full (np.ndarray): Array of length n containing computed Gauss communicability for candidate nodes k_lr (zeros elsewhere).
+        - k_lr (np.ndarray): Indices of candidate nodes selected by the low-rank approximation stage.
+        - kcomm_lr (np.ndarray): Communicability values estimated by the low-rank approximation for k_lr.
+        - realN_lr (int): Number of eigenpairs used during the low-rank approximation stage.
+        - S_history_lr (list): Candidate bounds history log throughout the low-rank iterations.
+        - low_rank_convergence (str): Convergence outcome of the low-rank stage:
+            'strong convergence' if exactly lr_nnodes were retained,
+            'weak convergence' if additional nodes were retained,
+            'no convergence' if all nodes in the connected component were retained.
     """
     if i < 0 or i >= A.shape[0]:
         raise ValueError(f"node {i} not found, must be in the range [0, {A.shape[0]})") 
@@ -156,9 +193,9 @@ def commhyb(A: csc_matrix,
         raise ValueError(f"alpha must be in (0, {1/theta:.6f}), got {alpha}")
 
     # WARNING: nnodes (parameter commlr) should be big enough otherwise some nodes get filtered out
-    vip_lr, vipcomm_lr, realN_lr, S_history_lr = commlr(A, i, fun_name=fun_name, nnodes=opts["lr_nnodes"], opts=opts)
+    k_lr, kcomm_lr, realN_lr, S_history_lr = commlr(A, i, fun_name=fun_name, nnodes=opts["lr_nnodes"], opts=opts)
 
-    low_rank_size = vip_lr.shape[0]
+    low_rank_size = k_lr.shape[0]
     allcomm_local = np.zeros(low_rank_size)
     iters_local = np.zeros(low_rank_size)
     y_local = np.zeros(n_sub)
@@ -167,12 +204,12 @@ def commhyb(A: csc_matrix,
 
     # mapping from original indexes to A_sub 
     # given that original_indices is an ordered array, searchsorted is used to find the "positions"
-    vip_lr_local_indices = np.searchsorted(original_indices, vip_lr)
+    k_lr_local_indices = np.searchsorted(original_indices, k_lr)
 
     y_local[local_i] = 1
     
     # perform Gauss quadrature only on the nodes identified by the low rank approximation
-    for idx, j_local in enumerate(vip_lr_local_indices):
+    for idx, j_local in enumerate(k_lr_local_indices):
         t0 = perf_counter()
         if j_local == local_i:
             allcomm_local[idx], iters_local[idx] = gauss_exp(A_sub, y_local, theta, opts) if fun_name == "exp" else gauss_res(A_sub, y_local, theta, alpha, opts)
@@ -189,15 +226,15 @@ def commhyb(A: csc_matrix,
             y_local[j_local] = 0
             
         info += 1 if iters_local[idx] >= gauss_max_iterations else 0
-        logger.info(f"matrix-vector products, maxn, node, elapsed time: {iters_local[idx]}, {gauss_max_iterations}, {vip_lr[idx]}, {perf_counter() - t0:.4f}")
+        logger.info(f"matrix-vector products, maxn, node, elapsed time: {iters_local[idx]}, {gauss_max_iterations}, {k_lr[idx]}, {perf_counter() - t0:.4f}")
         
     # ordering of the indexes and communicabilities 
     indx_local = np.argsort(allcomm_local)[::-1]
     allcomm_sorted = allcomm_local[indx_local]
 
-    # the final vip nodes are a subset of the nodes selected through the low rank approximation
-    vip_nodes = vip_lr[indx_local[:nnodes]]
-    vip_comm = allcomm_sorted[:nnodes]
+    # the final k nodes are a subset of the nodes selected through the low rank approximation
+    k_nodes = k_lr[indx_local[:nnodes]]
+    k_comm = allcomm_sorted[:nnodes]
 
     # check low rank convergence
     if low_rank_size == n_sub:
@@ -207,17 +244,17 @@ def commhyb(A: csc_matrix,
     else:
         low_rank_convergence = "weak convergence"
 
-    # insert the vip communicabilities into the original vector
+    # insert the k communicabilities into the original vector
     n = A.shape[0]
     allcomm_full = np.zeros(n)
-    allcomm_full[vip_lr] = allcomm_local
+    allcomm_full[k_lr] = allcomm_local
     
     iters_full = np.zeros(n)
-    iters_full[vip_lr] = iters_local
+    iters_full[k_lr] = iters_local
 
     logger.info("commhyb function completed")
 
-    return vip_nodes, vip_comm, info > 0, iters_full, allcomm_full, vip_lr, vipcomm_lr, realN_lr, S_history_lr, low_rank_convergence
+    return k_nodes, k_comm, info > 0, iters_full, allcomm_full, k_lr, kcomm_lr, realN_lr, S_history_lr, low_rank_convergence
 
 def stconvhyb(A: csc_matrix, 
             fun_name: Literal["exp", "res"] = "exp", 
@@ -226,26 +263,45 @@ def stconvhyb(A: csc_matrix,
                 np.ndarray, np.ndarray, bool, np.ndarray, np.ndarray, np.ndarray, np.ndarray, int, list, 
                 Literal['no convergence', 'strong convergence', 'weak convergence']]:
     """
-    Starting convenience computation via hybrid algorithm. First a low rank approximation is computed, 
-    to retrieve a reduced list of candidate nodes, then a more accurate computation of the
-    starting convenience is performed on the remaining nodes. 
+    Computes starting convenience via a two-stage hybrid algorithm and identifies the top K-nodes.
+    Stage 1: Computes a low-rank approximation (PRIMME) via stconvlr to prune the network down to a candidate set k_lr.
+    Stage 2: Runs high-precision Gauss-Radau quadrature on the candidate nodes using the polarization identity,
+             compute exact starting convenience e_i^T f(A) 1, sorts them, and identifies the final top K-nodes.
 
-    :param A: adjacency matrix
-    :param fun_name: function name, must be either "exp" (exponential) or "res" (resolvent)
-    :param nnodes: number of vip nodes seeked
+    Parameters:
+    ----------
+    A : csc_matrix
+        Adjacency matrix of the network (column sparse, symmetric, and unweighted).
+    fun_name : Literal["exp", "res"]
+        Matrix function: 'exp' for exponential starting convenience [exp(A) 1]_i,
+        'res' for resolvent starting convenience [(I - alpha*A)^(-1) 1]_i. Defaults to 'exp'.
+    nnodes : int
+        Number of final top K-nodes to identify.
+    opts : Optional[Dict[str, Any]]
+        Merged configuration dictionary for low-rank and Gauss quadrature stages:
+        - 'lr_nnodes' (int): Candidate pool size sought during the low-rank stage (stconvlr).
+        - 'gauss_tol' (float): Convergence tolerance for Gauss-Radau quadrature (default: 1e-3).
+        - 'gauss_max_iterations' (int): Maximum Lanczos iterations per polarization vector in Gauss stage (default: 200).
+        - 'gauss_largest_eigenvalue' (float): Upper bound on lambda_max(A) (default: computed via eigsh).
+        - 'alpha' (float): Resolvent attenuation factor in (0, 1/lambda_max) (required if fun_name == 'res').
+        - Low-rank options passed to stconvlr ('lr_max_iterations', 'lr_approximation_tol', 'lr_primme_batch_size', etc.).
 
-    :return vip_nodes: vip nodes seeked
-    :return vip_sgc: corresponding starting conveniences of the vip nodes
-    :return convergence: "exceeded max iterations number" if info > 0, "satisfied" otherwise (referring to Gauss quadrature)
-    :return iters: number of matrix-vector products performed by the Gauss quadrature 
-    :return vip_lr: vip nodes yielded by the low rank approximation
-    :return vipsgc_lr: corresponding starting conveniences for the vip nodes yielded by the low rank approximation
-    :return realN_lr: number of used eigenpairs during the low rank approximation
-    :return S_history_lr: log of the candidate nodes throughout the low rank approximation
-    :return low_rank_convergence: 
-        "no convergence" if the number of selected nodes by the low rank approximation equals the number of nodes of the network
-        "weak convergence" if the number of selected nodes by the low rank approximation is smaller than the number of nodes of the network
-        "strong convergence" if the number of selected nodes by the low rank approximation equals the number of seeked nodes
+    Returns:
+    -------
+    Tuple[np.ndarray, np.ndarray, bool, np.ndarray, np.ndarray, np.ndarray, np.ndarray, int, list, Literal['no convergence', 'strong convergence', 'weak convergence']]:
+        - k_nodes (np.ndarray): Indices of the top K-nodes with highest starting convenience, sorted in descending order.
+        - k_stconv (np.ndarray): Starting convenience scores of the top K-nodes.
+        - flag (bool): True if Gauss quadrature reached gauss_max_iterations on any evaluated node.
+        - iters_full (np.ndarray): Array of length n containing matrix-vector products performed by Gauss quadrature (nonzero at k_lr).
+        - allstconv_full (np.ndarray): Array of length n containing computed Gauss starting convenience for candidate nodes k_lr (zeros elsewhere).
+        - k_lr (np.ndarray): Indices of candidate nodes selected by the low-rank approximation stage.
+        - kstconv_lr (np.ndarray): Starting convenience scores estimated by the low-rank approximation for k_lr.
+        - realN_lr (int): Number of eigenpairs used during the low-rank approximation stage.
+        - S_history_lr (list): Candidate bounds history log throughout the low-rank iterations.
+        - low_rank_convergence (str): Convergence outcome of the low-rank stage:
+            'strong convergence' if exactly lr_nnodes were retained,
+            'weak convergence' if additional nodes were retained,
+            'no convergence' if all nodes in the network were retained.
     """
     if opts is None: 
         opts = {}
@@ -261,9 +317,9 @@ def stconvhyb(A: csc_matrix,
         logger.warning("the network has only 1 node, returning trivial result")
         return np.array([0]), np.array([1.0]), False, np.array([0]), np.array([1.0]), np.array([0]), np.array([1.0]), 0, [], "strong convergence"
 
-    vip_lr, vipstconv_lr, realN_lr, S_history_lr = stconvlr(A, fun_name=fun_name, nnodes=opts["lr_nnodes"], opts=opts)
+    k_lr, kstconv_lr, realN_lr, S_history_lr = stconvlr(A, fun_name=fun_name, nnodes=opts["lr_nnodes"], opts=opts)
 
-    low_rank_size = vip_lr.shape[0]
+    low_rank_size = k_lr.shape[0]
     allstconv = np.zeros(low_rank_size)
     iters = np.zeros(low_rank_size)
     y = np.ones(n)
@@ -278,7 +334,7 @@ def stconvhyb(A: csc_matrix,
     nm1 = n - 1
 
     # perform Gauss quadrature only on the nodes identified by the low rank approximation
-    for idx, i in enumerate(vip_lr):
+    for idx, i in enumerate(k_lr):
         y[i] = 2  
         t0 = perf_counter()
 
@@ -299,9 +355,9 @@ def stconvhyb(A: csc_matrix,
     indx = np.argsort(allstconv)[::-1]
     allstconv = allstconv[indx]
 
-    # the final vip nodes are a subset of the nodes selected through the low rank approximation
-    vip_nodes = vip_lr[indx[:nnodes]]
-    vip_stconv = allstconv[:nnodes]
+    # the final k nodes are a subset of the nodes selected through the low rank approximation
+    k_nodes = k_lr[indx[:nnodes]]
+    k_stconv = allstconv[:nnodes]
 
     # check low rank convergence
     if low_rank_size == n:
@@ -311,13 +367,13 @@ def stconvhyb(A: csc_matrix,
     else:
         low_rank_convergence = "weak convergence"
 
-    # insert the vip starting conveniences into the original vector
+    # insert the k starting conveniences into the original vector
     allstconv_full = np.zeros(n)
-    allstconv_full[vip_lr] = allstconv
+    allstconv_full[k_lr] = allstconv
     iters_full = np.zeros(n)
-    iters_full[vip_lr] = iters
+    iters_full[k_lr] = iters
 
     logger.info("stconvhyb function completed")
 
-    return vip_nodes, vip_stconv, info > 0, iters_full, allstconv_full, vip_lr, vipstconv_lr, realN_lr, S_history_lr, low_rank_convergence
+    return k_nodes, k_stconv, info > 0, iters_full, allstconv_full, k_lr, kstconv_lr, realN_lr, S_history_lr, low_rank_convergence
 

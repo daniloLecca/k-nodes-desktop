@@ -1,11 +1,11 @@
 
-# VIPNODES
+# K-NODES
 
-![GitHub Release](https://img.shields.io/github/v/release/daniloLecca/vipnodes-desktop) ![GitHub Release Date](https://img.shields.io/github/release-date/daniloLecca/vipnodes-desktop?display_date=published_at)
+![GitHub Release](https://img.shields.io/github/v/release/daniloLecca/k-nodes-desktop) ![GitHub Release Date](https://img.shields.io/github/release-date/daniloLecca/k-nodes-desktop?display_date=published_at)
 
 An online and desktop tool for complex network analysis via centrality measures computation.
 
-Some of the key functionalities offered by VIPNODES:
+Some of the key functionalities offered by K-NODES:
 
 * Visualization of the complex network with interactive features, especially useful for topological analysis.
 * Upload a network or generate a synthetic one with several models and parameters.
@@ -27,12 +27,12 @@ Some of the key functionalities offered by VIPNODES:
 
 ### Web version
 
-VIPNODES is available online with the same functionalities of the desktop version.
-You can visit VIPNODES at [unica.it](https://unica.it).
+K-NODES is available online with the same functionalities of the desktop version.
+You can visit K-NODES at [unica.it](https://unica.it).
 
 ### Desktop version
 
-Click on [Releases](https://github.com/daniloLecca/vipnodes-desktop/releases) and download the latest version suited for your device.
+Click on [Releases](https://github.com/daniloLecca/k-nodes-desktop/releases) and download the latest version suited for your device.
 
 ***
 
@@ -53,19 +53,19 @@ if nothing gets displayed, you can install it at [Microsoft Visual C++ Redistrib
 
 ##### Step 2
 
-Open *VIPNODES Setup 1.1.0.exe*. If a Microsoft security windows opens up, click *More info > Run anyway*.
+Open *K-NODES Setup 1.0.0.exe*. If a Microsoft security windows opens up, click *More info > Run anyway*.
 
 ***
 
 #### MacOS
 
-1. Open *VIPNODES-1.1.0-arm64.dmg*
-2. Move *VIPNODES* to the Applications folder.
+1. Open *K-NODES-1.0.0-arm64.dmg*
+2. Move *K-NODES* to the Applications folder.
 3. Eject the mounted disk image.
 
 >[!IMPORTANT]
-> Because VIPNODES is an open-source project and not notarized through a paid Apple Developer certificate, macOS will
-> flag it with a security warning on first launch (e.g., "VIPNODES is damaged and can’t be opened" or "Apple cannot
+> Because K-NODES is an open-source project and not notarized through a paid Apple Developer certificate, macOS will
+> flag it with a security warning on first launch (e.g., "K-NODES is damaged and can’t be opened" or "Apple cannot
 > check it for malicious software").
 > You can bypass this warning using either of the methods below.
 
@@ -75,11 +75,11 @@ Open *VIPNODES Setup 1.1.0.exe*. If a Microsoft security windows opens up, click
 2. Run the following command:
 
 ```bash
-sudo xattr -cr /Applications/VIPNODES.app
+sudo xattr -cr /Applications/K-NODES.app
 ```
 
 3. Type your macOS administrator password when prompted (characters will not show while typing) and press Enter.
-4. Launch VIPNODES normally from your Applications folder or Spotlight.
+4. Launch K-NODES normally from your Applications folder or Spotlight.
 
 > [!NOTE]
 > Note: If you moved the app to a custom folder instead of /Applications, replace the path above with the actual path
@@ -87,11 +87,11 @@ sudo xattr -cr /Applications/VIPNODES.app
 
 ##### Method 2: System Settings Override
 
-1. Try to open VIPNODES once from /Applications so macOS logs the launch attempt, then close the warning dialog.
+1. Try to open K-NODES once from /Applications so macOS logs the launch attempt, then close the warning dialog.
 2. Open System Settings (or System Preferences on macOS Monterey and older).
 3. Navigate to Privacy & Security.
 4. Scroll down to the Security section.
-5. You will see a notice: "VIPNODES was blocked from use because it is not from an identified developer."
+5. You will see a notice: "K-NODES was blocked from use because it is not from an identified developer."
 6. Click Open Anyway next to the notice and confirm with your admin password or Touch ID.
 
 ***
@@ -104,7 +104,7 @@ Before running the application, grant execute permissions to the downloaded `.Ap
 
 ```bash
 
-chmod +x VIPNODES-1.1.0.AppImage
+chmod +x K-NODES-1.0.0.AppImage
 
 ```
 
@@ -138,10 +138,10 @@ sudo pacman -S fuse2
 
 ##### Step 3: Run the application
 
-Double-click VIPNODES-1.1.0.AppImage or launch it from the terminal:
+Double-click K-NODES-1.0.0.AppImage or launch it from the terminal:
 
 ```bash
-./VIPNODES-1.1.0.AppImage
+./K-NODES-1.0.0.AppImage
 ```
 
 > [!TIP]
@@ -149,14 +149,14 @@ Double-click VIPNODES-1.1.0.AppImage or launch it from the terminal:
 > by passing the `--appimage-extract-and-run` flag:
 
 ```bash
-./VIPNODES-1.1.0.AppImage --appimage-extract-and-run
+./K-NODES-1.0.0.AppImage --appimage-extract-and-run
 ```
 
 ## Description
 
-VIPNODES proposes itself as a fast, reliable and accurate alternative for network analysis providing a wide range of options for graph visualization, centrality measures computation and data interpretation.
+K-NODES proposes itself as a fast, reliable and accurate alternative for network analysis providing a wide range of options for graph visualization, centrality measures computation and data interpretation.
 
-What differentiates VIPNODES from the other tools is its unique architecture. An entirely *Python-driven* stack, with the aid of NumPy, SciPy, Networkx and FastAPI, establishes an excellent solution for performing accurate scientific calculations.
+What differentiates K-NODES from the other tools is its unique architecture. An entirely *Python-driven* stack, with the aid of NumPy, SciPy, Networkx and FastAPI, establishes an excellent solution for performing accurate scientific calculations.
 
 The entire GUI is built on top of Vue.js and employs specific tools and libraries in order to provide great performance and high usability. For example, leveraging [Sigma.js v2](https://www.sigmajs.org/) for network visualization ensures a smooth user experience, capable of handling the visualization of hundreds of thousands of nodes.
 
@@ -222,7 +222,7 @@ Complete analytics are shown ranging from computation time to algorithm-specific
 Exporting the results can be done in three different ways:
 
 * **PDF** format: a complete document which reports computation results and parameters alongside with calculation diagnostics.
-* **CSV** format: *tabular-like* file where each row reports a VIP node with its  corresponding score, with descending order.
+* **CSV** format: *tabular-like* file where each row reports a K-node with its  corresponding score, with descending order.
 * **JSON** format: a *key-value* representation of the results, particularly useful when using data analysis tools.
 
 > [!TIP]
