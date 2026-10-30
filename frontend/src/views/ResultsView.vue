@@ -7,6 +7,7 @@
     import html2pdf from 'html2pdf.js';
     import nprogress, { trickle } from 'nprogress';
 
+    const numDecimalDigits = 2;
     const computationStore = useComputationStore()
     const complexNetworkStore = useComplexNetworkStore()
     const lowRankConvergence = ref('')
@@ -435,7 +436,7 @@
             <h3 v-if="isLegacyComputation() && computationStore.computationData.compMethod === 'hyb'"> Number of nodes sought via low rank approximation: {{ computationStore.computationData.numNodesLR }}</h3>   
             <h3 v-if="isLegacyComputation() && computationStore.computationData.compMethod === 'hyb'"> Number of nodes identified via low rank approximation: {{ kLowrank.length }}</h3>   
         <h3>Total number of K-nodes identified: {{ kNodes.length }}</h3>
-        <h3>Elapsed time: {{ computationStore.computationResult.elapsed_time }}s</h3>
+        <h3>Elapsed time: {{ computationStore.computationResult.elapsed_time.toExponential(numDecimalDigits) }}s</h3>
             <h3 v-if="isLegacyComputation() && computationStore.computationData.compMethod !== 'gauss'">Number of eigenpairs used: {{ computationStore.computationResult.used_eigenpairs }}</h3>
             <h3 v-if="isLegacyComputation() && computationStore.computationData.compMethod === 'gauss'">Mean of matrix vector products:
                {{ matrixVectorProducts.length > 0 ? (matrixVectorProducts.reduce((sum, num) => sum + num, 0)) / matrixVectorProducts.length : 0 }}
@@ -478,7 +479,7 @@
         <div class="results-table-column">
             <h4>K-scores: </h4>
             <ul>
-                <li v-for="score in kScores"> Score: {{ score }} </li>
+                <li v-for="score in kScores"> Score: {{ score.toExponential(numDecimalDigits) }} </li>
             </ul>
         </div>
 
