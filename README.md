@@ -4,8 +4,11 @@
 ![GitHub Release](https://img.shields.io/github/v/release/daniloLecca/k-nodes-desktop) ![GitHub Release Date](https://img.shields.io/github/release-date/daniloLecca/k-nodes-desktop?display_date=published_at)
 
 K-NODES: Network-Oriented Detection and Selection of Key Nodes 
+
 Caterina FENU, Danilo LECCA, and Fabio PILI
+
 ETNA Volume XX, Pages yy-zz, year
+
 [link](https://etna.math.kent.edu/url_available_after_acceptance)
 
 DESCRIPTION
