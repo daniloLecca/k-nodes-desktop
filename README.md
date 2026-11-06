@@ -3,6 +3,14 @@
 
 ![GitHub Release](https://img.shields.io/github/v/release/daniloLecca/k-nodes-desktop) ![GitHub Release Date](https://img.shields.io/github/release-date/daniloLecca/k-nodes-desktop?display_date=published_at)
 
+K-NODES: Network-Oriented Detection and Selection of Key Nodes 
+Caterina FENU, Danilo LECCA, and Fabio PILI
+ETNA Volume XX, Pages yy-zz, year
+[link](https://etna.math.kent.edu/url_available_after_acceptance)
+
+DESCRIPTION
+-----------
+
 An online and desktop tool for complex network analysis via centrality measures computation.
 
 Some of the key functionalities offered by K-NODES:
@@ -11,6 +19,18 @@ Some of the key functionalities offered by K-NODES:
 * Upload a network or generate a synthetic one with several models and parameters.
 * Compute centrality measures with different algorithms and options.
 * Explore, interact and download the results with specific functionalities.
+
+Release: 1.0, November 2026
+
+Programming language: Phyton 
+
+DISCLAIMER
+----------
+ETNA editors have test run the code, but the reponsibility of the correctness
+of the code is with the authors. ETNA is not responsible for any problems the 
+code may cause; see the file License.md for details.
+
+---
 
 ## Table of contents
 
