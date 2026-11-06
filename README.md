@@ -3,7 +3,7 @@
 
 ![GitHub Release](https://img.shields.io/github/v/release/daniloLecca/k-nodes-desktop) ![GitHub Release Date](https://img.shields.io/github/release-date/daniloLecca/k-nodes-desktop?display_date=published_at)
 
-K-NODES: Network-Oriented Detection and Selection of Key Nodes 
+K-NODES: Network-Oriented Detection and Selection of Key Nodes
 
 Caterina FENU, Danilo LECCA, and Fabio PILI
 
@@ -25,12 +25,12 @@ Some of the key functionalities offered by K-NODES:
 
 Release: 1.0, November 2026
 
-Programming language: Phyton 
+Programming language: Python
 
 DISCLAIMER
 ----------
-ETNA editors have test run the code, but the reponsibility of the correctness
-of the code is with the authors. ETNA is not responsible for any problems the 
+ETNA editors have test run the code, but the responsibility of the correctness
+of the code is with the authors. ETNA is not responsible for any problems the
 code may cause; see the file License.md for details.
 
 ---
@@ -173,6 +173,13 @@ Double-click K-NODES-1.0.0.AppImage or launch it from the terminal:
 
 ```bash
 ./K-NODES-1.0.0.AppImage --appimage-extract-and-run
+```
+
+> [!NOTE]
+If the application fails to start due to Chromium/Electron sandbox issues (e.g. running in Docker, over SSH, or under strict user namespaces), you may need to pass the --no-sandbox flag:
+
+```bash
+./K-NODES-1.0.0.AppImage --no-sandbox
 ```
 
 ## Description

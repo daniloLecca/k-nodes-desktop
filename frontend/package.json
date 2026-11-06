@@ -42,7 +42,13 @@
     ],
     "win": {
       "target": "nsis",
-      "icon": "public/knodes-logo.ico"
+      "icon": "public/knodes-logo.ico",
+      "nsis": {
+        "oneClick": false,
+        "allowToChangeInstallationDirectory": true,
+        "createDesktopShortcut": true,
+        "createStartMenuShortcut": false
+      }
     },
     "linux": {
       "target": "AppImage",
