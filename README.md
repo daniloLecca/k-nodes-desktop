@@ -257,3 +257,143 @@ Results diagnostics comprehend a *snapshot* of the adjacency matrix sparsity pat
 
 > [!TIP]
 > Try hovering over the plots to observe additional information.
+
+> ## Tutorial and verification
+
+The following smoke test checks that K-NODES can import a network and
+compute a standard centrality index. It is not one of the timed experiments
+in the paper. The numerical values below were independently checked from
+`arctic.json` after representing the data as a simple, undirected graph.
+
+1. Launch K-NODES using the web application or a desktop installation.
+2. Import the supplied Graphology JSON file `arctic.json` using the network
+   upload control. 
+3. Check that the resulting graph has **1,715 vertices and 6,228 distinct
+   edges**. The JSON contains 6,676 edge records; 448 are repeated unordered
+   vertex pairs and must not be counted twice in a simple graph. No
+   self-loops occur. The graph has seven connected components.
+4. Select **Degree centrality (normalized)** and request the five highest
+   ranked vertices. For the usual normalization by `n - 1 = 1714`, the
+   expected results on the simple graph are:
+
+   | Vertex key | Label | Degree | Normalized degree |
+   | --- | --- | ---: | ---: |
+   | `53` | Changement Climatique | 212 | 0.123687 |
+   | `79` | Climatic Change | 170 | 0.099183 |
+   | `65` | Effet De Serre | 143 | 0.083431 |
+   | `1` | New York | 142 | 0.082847 |
+   | `50` | Rechauffement Climatique | 120 | 0.070012 |
+
+   The unaccented text in the last label is for ASCII compatibility; the
+   corresponding label in the JSON includes an accent. Vertex keys and
+   numeric values, rather than label spelling, are the primary checks.
+5. Export the result in CSV or JSON format
+   and check the ranking and scores against the table above.
+
+These values are a reference for the **simple undirected** graph. The
+original JSON also contains stored node attributes, including a field
+named `nansi-degree`; these attributes need not agree with degrees after
+parallel edges have been merged.
+
+## Reproducing the numerical experiments
+
+This section corresponds to the Arctic comparison in the graphical user
+interface section, the performance comparison with SoftNet in Section
+"Numerical Experiments", and the usability study of the accompanying
+manuscript. To reproduce a computation, keep the input network,
+centrality definition, parameters, program versions, and vertex indexing
+identical. Timings are machine-dependent and are intended for comparison,
+not as exact pass/fail outputs.
+
+### A. Arctic network: hybrid method versus Gauss quadrature
+
+**Input.** Use the provided `arctic.json` file (Graphology JSON). The
+undirected, unweighted simple graph has 1,715 vertices and 6,228 distinct
+edges. 
+
+**Procedure.**
+
+1. Open K-NODES and import `arctic.json`.
+2. In the centrality-analysis form, select the index and numerical
+   parameters used in the paper's Arctic comparison figure (Fig. 4.4 in the paper).
+3. Run the **Hybrid** algorithm and record the ranked vertex keys and
+   scores; export the results to CSV or JSON.
+4. Without changing the input graph or centrality parameters, switch to
+   **Gauss quadrature**, run the computation, and export the results.
+5. Compare the rankings and displayed scores, accounting for numerical
+   rounding and the selected stopping tolerances. The manuscript reports
+   matching rankings and reported scores for these two runs.
+
+**Exact settings to add from the screenshots before submission.** The
+LaTeX source references figure files but does not encode their values.
+Transcribe the following from the recorded K-NODES run:
+
+| Setting | Value used in Arctic comparison |
+| --- | --- |
+| Centrality measure | Subgraph Centrality |
+| Matrix function (exponential/resolvent) | Exponential |
+| Number of highest-ranked vertices | 10 |
+| Gauss quadrature tolerance | 1e-9 |
+| Spectral/low-rank tolerance and stopping mode | 1e-9 |
+| Maximum spectral subspace size / candidate count, if used | 1715 |
+| Spectral shift and any remaining nondefault controls | true |
+
+
+### B. Performance comparison with SoftNet
+
+**Experimental environment used in the manuscript.** The timings were
+obtained locally on a MacBook Pro with an Apple M1 processor and 8 GB
+RAM. SoftNet was executed in MATLAB R2024b in double precision. The
+K-NODES release/build and SoftNet revision must be recorded to permit
+precise re-execution.
+
+**Benchmark networks.**
+
+| Network | Vertices | Edges | Source or generation details |
+| --- | ---: | ---: | --- |
+| `power` | 4,941 | 6,594 | Western United States power grid |
+| `collaborations` | 40,421 | 175,692 | Scientific collaboration network |
+| `random` | 81,724 | 326,896 | Watts-Strogatz, rewiring probability `0.5` |
+
+**Settings common to all nine method/index combinations.**
+
+- Request the **five highest-ranked vertices** (`m = 5`).
+- Use the **matrix exponential**, with **spectral shifting enabled**.
+- Use the **default stopping tolerances** of the tested release.
+- For **communicability**, use **vertex 1** as the reference vertex.
+  Verify that K-NODES and SoftNet refer to the same vertex despite any
+  differences in internal indexing.
+- Run every method/index/network combination **three times** with each
+  application. Report the **median elapsed execution time** in seconds.
+- Test three methods: **partial spectral factorization with strong
+  convergence**, **hybrid**, and **Gauss quadrature**.
+- Test three measures: **subgraph centrality** (`sgcen`),
+  **communicability** (`comm`), and **starting convenience** (`stconv`).
+
+**Procedure.** For each benchmark graph, import the same
+preprocessed adjacency matrix into K-NODES and SoftNet. Apply the shared
+settings above. Run each of the nine method/measure combinations three
+times in each program, record individual execution times, and calculate
+the median. Compare with Table "Median execution times" in the paper.
+Do not include graph creation, UI interaction, or file loading in the
+timed interval unless that was also included in the original tests;
+
+
+The following table reproduces the **reported medians** from the paper;
+each entry is `K-NODES / SoftNet` in seconds. These are reference
+measurements on the stated machine, not platform-independent numerical
+outputs.
+
+| Method | Measure | Power | Collaborations | Random |
+| --- | --- | ---: | ---: | ---: |
+| Strong convergence | `sgcen` | 0.276 / 12.32 | 1.972 / 6.388 | 6.508 / 1541 |
+| Strong convergence | `comm` | 0.277 / 20.52 | 2.043 / 6.942 | 6.038 / 1513 |
+| Strong convergence | `stconv` | 0.315 / 14.67 | 2.121 / 7.223 | 6.018 / 1509 |
+| Hybrid | `sgcen` | 0.338 / 0.463 | 2.507 / 7.084 | 6.841 / 113.1 |
+| Hybrid | `comm` | 0.358 / 0.149 | 2.437 / 7.464 | 8.312 / 85.52 |
+| Hybrid | `stconv` | 0.342 / 0.383 | 2.676 / 7.129 | 7.373 / 82.41 |
+| Gauss | `sgcen` | 4.019 / 2.493 | 842.3 / 467.5 | 2406 / 729.1 |
+| Gauss | `comm` | 8.798 / 3.815 | 1254 / 773.9 | 3952 / 1241 |
+| Gauss | `stconv` | 9.079 / 4.111 | 1535 / 691.1 | 4445 / 988.3 |
+
+
