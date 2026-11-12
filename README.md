@@ -51,7 +51,7 @@ code may cause; see the file License.md for details.
 ### Web version
 
 K-NODES is available online with the same functionalities of the desktop version.
-You can visit K-NODES at [unica.it](https://unica.it).
+You can visit K-NODES at [knodes.unica.it](https://knodes.unica.it).
 
 ### Desktop version
 
